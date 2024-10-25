@@ -32,14 +32,28 @@ auto Planner::PlanFuncCall(const BoundFuncCall &expr, const std::vector<Abstract
   }
   return GetFuncCallFromFactory(expr.func_name_, std::move(args));
 }
-
 // NOLINTNEXTLINE
 auto Planner::GetFuncCallFromFactory(const std::string &func_name, std::vector<AbstractExpressionRef> args)
     -> AbstractExpressionRef {
   // 1. check if the parsed function name is "lower" or "upper".
   // 2. verify the number of args (should be 1), refer to the test cases for when you should throw an `Exception`.
   // 3. return a `StringExpression` std::shared_ptr.
-  throw Exception(fmt::format("func call {} not supported in planner yet", func_name));
+  if (func_name != "lower" && func_name != "upper") {
+    throw Exception(fmt::format("func call {} not supported in planner yet", func_name));
+  }
+  if (args.size() != 1) {
+    throw Exception(fmt::format("more than one args in func call {}", func_name));
+  }
+  auto expr = args[0];
+  StringExpressionType stype;
+  if (func_name == "lower") {
+    stype = StringExpressionType::Lower;
+  } else {
+    stype = StringExpressionType::Upper;
+  }
+  AbstractExpressionRef string_expr = std::make_shared<StringExpression>(expr, stype);
+  return string_expr;
+  // throw Exception(fmt::format("func call {} not supported in planner yet", func_name));
 }
 
 }  // namespace bustub

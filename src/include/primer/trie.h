@@ -63,7 +63,7 @@ class TrieNode {
   // A map of children, where the key is the next character in the key, and the value is the next TrieNode.
   // You MUST store the children information in this structure. You are NOT allowed to remove the `const` from
   // the structure.
-  std::map<char, std::shared_ptr<const TrieNode>> children_;
+  mutable std::map<char, std::shared_ptr<const TrieNode>> children_;
 
   // Indicates if the node is the terminal node.
   bool is_value_node_{false};
@@ -128,6 +128,9 @@ class Trie {
   // Remove the key from the trie. If the key does not exist, return the original trie.
   // Otherwise, returns the new trie.
   auto Remove(std::string_view key) const -> Trie;
+
+  auto RemoveHelp(std::shared_ptr<const TrieNode> root, std::string_view key, int index) const
+      -> std::shared_ptr<const TrieNode>;
 
   // Get the root of the trie, should only be used in test cases.
   auto GetRoot() const -> std::shared_ptr<const TrieNode> { return root_; }

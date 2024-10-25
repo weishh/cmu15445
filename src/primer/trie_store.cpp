@@ -25,21 +25,23 @@ template <class T>
 void TrieStore::Put(std::string_view key, T value) {
   // You will need to ensure there is only one writer at a time. Think of how you can achieve this.
   // The logic should be somehow similar to `TrieStore::Get`.
-  std::unique_lock<std::mutex> lock(root_lock_);
   std::unique_lock<std::mutex> lock1(write_lock_);
-  root_ = root_.Put<T>(key, std::move(value));
-  lock1.unlock();
+  Trie new_root = root_.Put<T>(key, std::move(value));
+  std::unique_lock<std::mutex> lock(root_lock_);
+  root_ = std::move(new_root);
   lock.unlock();
+  lock1.unlock();
 }
 
 void TrieStore::Remove(std::string_view key) {
   // You will need to ensure there is only one writer at a time. Think of how you can achieve this.
   // The logic should be somehow similar to `TrieStore::Get`.
-  std::unique_lock<std::mutex> lock(root_lock_);
   std::unique_lock<std::mutex> lock1(write_lock_);
-  root_ = root_.Remove(key);
-  lock1.unlock();
+  Trie new_root = root_.Remove(key);
+  std::unique_lock<std::mutex> lock(root_lock_);
+  root_ = std::move(new_root);
   lock.unlock();
+  lock1.unlock();
 }
 
 // Below are explicit instantiation of template functions.

@@ -17,7 +17,7 @@
 #include <mutex>  // NOLINT
 #include <unordered_map>
 #include <vector>
-
+#include <queue>
 #include "common/config.h"
 #include "common/macros.h"
 
@@ -26,14 +26,20 @@ namespace bustub {
 enum class AccessType { Unknown = 0, Lookup, Scan, Index };
 
 class LRUKNode {
+
+ public:
+  auto getBKD() -> size_t;
+  auto isEvictable() -> bool;
+  auto get_least() -> size_t;
+
  private:
   /** History of last seen K timestamps of this page. Least recent timestamp stored in front. */
   // Remove maybe_unused if you start using them. Feel free to change the member variables as you want.
 
-  [[maybe_unused]] std::list<size_t> history_;
-  [[maybe_unused]] size_t k_;
+  std::list<size_t> history_;
+  size_t k_;
   [[maybe_unused]] frame_id_t fid_;
-  [[maybe_unused]] bool is_evictable_{false};
+  bool is_evictable_{false};
 };
 
 /**

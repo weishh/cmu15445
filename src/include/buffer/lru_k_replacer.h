@@ -28,14 +28,20 @@ enum class AccessType { Unknown = 0, Lookup, Scan, Index };
 class LRUKNode {
 
  public:
+ 
   auto getBKD() -> size_t;
   auto isEvictable() -> bool;
   auto get_least() -> size_t;
+  auto recordAccess(size_t time) -> void;
+  auto setEvictable(bool set_evictable) -> bool;
+  auto clearHistory() -> void;
+ //构造函数
+  LRUKNode(size_t k) : k_(k){}
+  LRUKNode() = default;
 
  private:
   /** History of last seen K timestamps of this page. Least recent timestamp stored in front. */
   // Remove maybe_unused if you start using them. Feel free to change the member variables as you want.
-
   std::list<size_t> history_;
   size_t k_;
   [[maybe_unused]] frame_id_t fid_;

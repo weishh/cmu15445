@@ -176,6 +176,7 @@ class BufferPoolManager {
   /** Number of pages in the buffer pool. */
   const size_t pool_size_;
   /** The next page id to be allocated  */
+  // 类似原子计数器
   std::atomic<page_id_t> next_page_id_ = 0;
 
   /** Array of buffer pool pages. */

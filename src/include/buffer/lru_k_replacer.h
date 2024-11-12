@@ -159,6 +159,8 @@ class LRUKReplacer {
    */
   auto Size() -> size_t;
 
+  auto getTimestamp() -> size_t;
+
  private:
   // TODO(student): implement me! You can replace these member variables as you like.
   // Remove maybe_unused if you start using them.

@@ -111,7 +111,7 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
 
 auto LRUKReplacer::Size() -> size_t { return curr_size_; }
 
-}  // namespace bustub
+auto LRUKReplacer::getTimestamp() -> size_t {return current_timestamp_; }
 
 auto bustub::LRUKNode::getBKD() -> size_t {
   if (history_.size() < k_) {
@@ -134,3 +134,5 @@ auto bustub::LRUKNode::setEvictable(bool set_evictable) -> bool {
   return flag ^ is_evictable_;
 }
 auto bustub::LRUKNode::clearHistory() -> void { history_.clear(); }
+
+}  // namespace bustub

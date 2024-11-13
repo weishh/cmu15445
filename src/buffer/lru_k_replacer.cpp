@@ -21,6 +21,7 @@ LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_fra
 // 涉及修改公共变量：node_store_中LRUNODE的历史链表，LRUNODE中的可驱逐标志
 // 涉及访问公共变量：node_store_,
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
+  std::lock_guard<std::mutex> lock(latch_);
   frame_id_t max_frame_id = 0;
   size_t min_access = SIZE_MAX;
   size_t tmp_bkd = 0;
@@ -55,8 +56,8 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   *frame_id = max_frame_id;
 
   node_store_[max_frame_id].clearHistory();
-  SetEvictable(max_frame_id, false);
-
+  node_store_[max_frame_id].setEvictable(false);
+  --curr_size_;
   return true;
 }
 
@@ -79,21 +80,20 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
 
 // 修改：nodestore中lrunode的可驱逐标记， lru的size， 访问nodestore
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
-  {
-    std::lock_guard<std::mutex> lock(latch_);
-    if (frame_id < 0 || frame_id >= static_cast<int>(replacer_size_)) {
-      throw Exception("Invalid frame id: out of range");
-    }
-    if (!node_store_.count(frame_id)) {
-      throw Exception("Invalid frame id: not found");
-    }
-    // TT，FF情况，size不变；T，f-t ++size； f，t-f --size
-    bool flag = node_store_[frame_id].setEvictable(set_evictable);
-    if (flag) {
-      set_evictable ? ++curr_size_ : --curr_size_;
-    }
+  std::lock_guard<std::mutex> lock(latch_);
+  if (frame_id < 0 || frame_id >= static_cast<int>(replacer_size_)) {
+    throw Exception("Invalid frame id: out of range");
+  }
+  if (!node_store_.count(frame_id)) {
+    throw Exception("Invalid frame id: not found");
+  }
+  // TT，FF情况，size不变；T，f-t ++size； f，t-f --size
+  bool flag = node_store_[frame_id].setEvictable(set_evictable);
+  if (flag) {
+    set_evictable ? ++curr_size_ : --curr_size_;
   }
 }
+
 // 修改：nodestore中lrunode的可驱逐标记
 void LRUKReplacer::Remove(frame_id_t frame_id) {
   {
@@ -105,13 +105,16 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
       throw Exception("frame is not exist or unevictable");
     }
     node_store_[frame_id].clearHistory();
-    node_store_[frame_id].setEvictable(false);
   }
+  SetEvictable(frame_id, false);
 }
 
-auto LRUKReplacer::Size() -> size_t { return curr_size_; }
+auto LRUKReplacer::Size() -> size_t {
+  std::lock_guard<std::mutex> lock(latch_);
+  return curr_size_;
+}
 
-auto LRUKReplacer::getTimestamp() -> size_t {return current_timestamp_; }
+auto LRUKReplacer::getTimestamp() -> size_t { return current_timestamp_; }
 
 auto bustub::LRUKNode::getBKD() -> size_t {
   if (history_.size() < k_) {

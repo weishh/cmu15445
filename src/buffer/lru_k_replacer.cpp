@@ -50,7 +50,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   }
   // 表示有少于k次访问的frame，采用传统lru选择驱逐frame
   if (min_access == 0) {
-    max_frame_id = pq.top().first;
+    max_frame_id = pq.top().first; //bug
   }
   // 这里的驱逐不能直接erase，只需要清楚history
   *frame_id = max_frame_id;
@@ -71,9 +71,9 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
   {
     std::lock_guard<std::mutex> lock(latch_);
     if (node_store_.count(frame_id) == 0U) {
-      node_store_.insert({frame_id, LRUKNode(k_)});
+      node_store_.insert({frame_id, LRUKNode(k_)}); //bug
     }
-    node_store_[frame_id].RecordAccess(current_timestamp_);
+    node_store_[frame_id].RecordAccess(current_timestamp_); //bug
     ++current_timestamp_;
   }
 }

@@ -70,7 +70,7 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
   }
   {
     std::lock_guard<std::mutex> lock(latch_);
-    if (node_store_.count(frame_id) == 0U) {  // 这里是否需要判断 > replacer_size_ ？不需要，前面判断frame_id保证了不会超大小
+    if (node_store_.count(frame_id) == 0U) {
       node_store_.insert({frame_id, LRUKNode(k_)});
     }
     node_store_[frame_id].RecordAccess(current_timestamp_);

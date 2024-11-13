@@ -80,7 +80,7 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
   }
   {
     std::lock_guard<std::mutex> lock(latch_);
-    if(page_table_.count(page_id) != 0U) {
+    if (page_table_.count(page_id) != 0U) {
       ptr = &pages_[page_table_[page_id]];
       return ptr;
     }

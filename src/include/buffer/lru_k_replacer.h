@@ -15,9 +15,9 @@
 #include <limits>
 #include <list>
 #include <mutex>  // NOLINT
+#include <queue>
 #include <unordered_map>
 #include <vector>
-#include <queue>
 #include "common/config.h"
 #include "common/macros.h"
 
@@ -26,17 +26,15 @@ namespace bustub {
 enum class AccessType { Unknown = 0, Lookup, Scan, Index };
 
 class LRUKNode {
-
  public:
- 
-  auto getBKD() -> size_t;
-  auto isEvictable() -> bool;
-  auto get_least() -> size_t;
-  auto recordAccess(size_t time) -> void;
-  auto setEvictable(bool set_evictable) -> bool;
-  auto clearHistory() -> void;
- //构造函数
-  LRUKNode(size_t k) : k_(k){}
+  auto GetBKD() -> size_t;
+  auto IsEvictable() -> bool;
+  auto GetLeast() -> size_t;
+  auto RecordAccess(size_t time) -> void;
+  auto SetEvictable(bool set_evictable) -> bool;
+  auto ClearHistory() -> void;
+  //构造函数
+  explicit LRUKNode(size_t k) : k_(k) {}
   LRUKNode() = default;
 
  private:
@@ -159,7 +157,7 @@ class LRUKReplacer {
    */
   auto Size() -> size_t;
 
-  auto getTimestamp() -> size_t;
+  auto GetTimestamp() -> size_t;
 
  private:
   // TODO(student): implement me! You can replace these member variables as you like.

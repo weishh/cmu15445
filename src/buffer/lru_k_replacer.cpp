@@ -30,12 +30,12 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   };
   std::priority_queue<std::pair<frame_id_t, size_t>, std::vector<std::pair<frame_id_t, size_t>>, decltype(cmp)> pq(cmp);
   for (auto &p : node_store_) {
-    if (!p.second.isEvictable()) {
+    if (!p.second.IsEvictable()) {
       continue;
     }
-    tmp_bkd = p.second.getBKD();
+    tmp_bkd = p.second.GetBKD();
     if (tmp_bkd == SIZE_MAX) {
-      pq.push({p.first, p.second.get_least()});
+      pq.push({p.first, p.second.GetLeast()});
       min_access = 0;
       continue;
     }
@@ -45,7 +45,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
     }
   }
   // 没有找到可以驱逐的frame
-  if (!max_frame_id && min_access == SIZE_MAX) {
+  if (max_frame_id == 0 && min_access == SIZE_MAX) {
     return false;
   }
   // 表示有少于k次访问的frame，采用传统lru选择驱逐frame
@@ -55,8 +55,8 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   // 这里的驱逐不能直接erase，只需要清楚history
   *frame_id = max_frame_id;
 
-  node_store_[max_frame_id].clearHistory();
-  node_store_[max_frame_id].setEvictable(false);
+  node_store_[max_frame_id].ClearHistory();
+  node_store_[max_frame_id].SetEvictable(false);
   --curr_size_;
   return true;
 }
@@ -70,10 +70,10 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
   }
   {
     std::lock_guard<std::mutex> lock(latch_);
-    if (!node_store_.count(frame_id)) {  // 这里是否需要判断 > replacer_size_ ？不需要，前面判断frame_id保证了不会超大小
+    if (node_store_.count(frame_id) == 0U) {  // 这里是否需要判断 > replacer_size_ ？不需要，前面判断frame_id保证了不会超大小
       node_store_.insert({frame_id, LRUKNode(k_)});
     }
-    node_store_[frame_id].recordAccess(current_timestamp_);
+    node_store_[frame_id].RecordAccess(current_timestamp_);
     ++current_timestamp_;
   }
 }
@@ -84,11 +84,11 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   if (frame_id < 0 || frame_id >= static_cast<int>(replacer_size_)) {
     throw Exception("Invalid frame id: out of range");
   }
-  if (!node_store_.count(frame_id)) {
+  if (node_store_.count(frame_id) == 0U) {
     throw Exception("Invalid frame id: not found");
   }
   // TT，FF情况，size不变；T，f-t ++size； f，t-f --size
-  bool flag = node_store_[frame_id].setEvictable(set_evictable);
+  bool flag = node_store_[frame_id].SetEvictable(set_evictable);
   if (flag) {
     set_evictable ? ++curr_size_ : --curr_size_;
   }
@@ -101,10 +101,10 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
     if (frame_id < 0 || frame_id >= static_cast<int>(replacer_size_)) {
       throw Exception("Invalid frame_id");
     }
-    if (!node_store_.count(frame_id) || !node_store_[frame_id].isEvictable()) {
+    if (node_store_.count(frame_id) == 0U || !node_store_[frame_id].IsEvictable()) {
       throw Exception("frame is not exist or unevictable");
     }
-    node_store_[frame_id].clearHistory();
+    node_store_[frame_id].ClearHistory();
   }
   SetEvictable(frame_id, false);
 }
@@ -114,9 +114,9 @@ auto LRUKReplacer::Size() -> size_t {
   return curr_size_;
 }
 
-auto LRUKReplacer::getTimestamp() -> size_t { return current_timestamp_; }
+auto LRUKReplacer::GetTimestamp() -> size_t { return current_timestamp_; }
 
-auto bustub::LRUKNode::getBKD() -> size_t {
+auto bustub::LRUKNode::GetBKD() -> size_t {
   if (history_.size() < k_) {
     return SIZE_MAX;
   }
@@ -125,17 +125,17 @@ auto bustub::LRUKNode::getBKD() -> size_t {
   return *iter;
 }
 
-auto bustub::LRUKNode::isEvictable() -> bool { return is_evictable_; }
+auto bustub::LRUKNode::IsEvictable() -> bool { return is_evictable_; }
 
-auto bustub::LRUKNode::get_least() -> size_t { return history_.front(); }
+auto bustub::LRUKNode::GetLeast() -> size_t { return history_.front(); }
 
-auto bustub::LRUKNode::recordAccess(size_t time) -> void { history_.push_front(time); }
+auto bustub::LRUKNode::RecordAccess(size_t time) -> void { history_.push_front(time); }
 
-auto bustub::LRUKNode::setEvictable(bool set_evictable) -> bool {
+auto bustub::LRUKNode::SetEvictable(bool set_evictable) -> bool {
   bool flag = is_evictable_;
   is_evictable_ = set_evictable;
   return flag ^ is_evictable_;
 }
-auto bustub::LRUKNode::clearHistory() -> void { history_.clear(); }
+auto bustub::LRUKNode::ClearHistory() -> void { history_.clear(); }
 
 }  // namespace bustub

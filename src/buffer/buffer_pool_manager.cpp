@@ -31,8 +31,7 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 
   // we allocate a consecutive memory space for the buffer pool
   pages_ = new Page[pool_size_];
-  replacer_ = std::make_unique<LRUKReplacer>(pool_size, replacer_k); //bug
-
+  replacer_ = std::make_unique<LRUKReplacer>(pool_size, replacer_k);
   // Initially, every page is in the free list.
   for (size_t i = 0; i < pool_size_; ++i) {
     free_list_.emplace_back(static_cast<int>(i));
@@ -53,12 +52,12 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
     } else if (!replacer_->Evict(&frame_id)) {
       return nullptr;
     }
-    replacer_->RecordAccess(frame_id); //bug
+    replacer_->RecordAccess(frame_id);
     // holding a frameid
     pid = AllocatePage();
     ptr = &pages_[frame_id];
     page_table_.erase(ptr->page_id_);
-    page_table_.insert({pid, frame_id}); //bug
+    page_table_.insert({pid, frame_id});
     ++ptr->pin_count_;
   }
   ptr->WLatch();

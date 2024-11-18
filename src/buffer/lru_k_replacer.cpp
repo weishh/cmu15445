@@ -22,41 +22,48 @@ LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_fra
 // 涉及访问公共变量：node_store_,
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   std::lock_guard<std::mutex> lock(latch_);
-  frame_id_t max_frame_id = 0;
-  size_t min_access = SIZE_MAX;
-  size_t tmp_bkd = 0;
-  auto cmp = [](std::pair<frame_id_t, size_t> p1, std::pair<frame_id_t, size_t> p2) -> bool {
-    return p1.second > p2.second;
-  };
-  std::priority_queue<std::pair<frame_id_t, size_t>, std::vector<std::pair<frame_id_t, size_t>>, decltype(cmp)> pq(cmp);
+  frame_id_t fid = -1;
+  std::vector<std::pair<frame_id_t, size_t>> v1;
+  std::vector<std::pair<frame_id_t, size_t>> v2;
+  std::cout << "k value: " << k_ << std::endl;
+  for (auto &[fid, node] : node_store_) {
+    std::cout << "Frame " << fid << ":\n";
+    std::cout << "Evictable: " << node.IsEvictable() << "\n";
+    std::cout << "History: ";
+    // 需要在LRUKNode中添加一个方法来访问history_
+    for (auto &ts : node.GetHistory()) {
+      std::cout << ts << " ";
+    }
+    std::cout << "\n";
+  }
+  std::cout << "===========" << std::endl;
+
   for (auto &p : node_store_) {
     if (!p.second.IsEvictable()) {
       continue;
     }
-    tmp_bkd = p.second.GetBKD();
-    if (tmp_bkd == SIZE_MAX) {
-      pq.push({p.first, p.second.GetLeast()});
-      min_access = 0;
-      continue;
-    }
-    if (tmp_bkd < min_access) {
-      min_access = tmp_bkd;
-      max_frame_id = p.first;
+    auto k_distance = p.second.GetBKD();
+    if (k_distance == SIZE_MAX) {
+      v2.emplace_back(p.first, p.second.GetLeast());
+    } else {
+      v1.emplace_back(p.first, k_distance);
     }
   }
-  // 没有找到可以驱逐的frame
-  if (max_frame_id == 0 && min_access == SIZE_MAX) {
+  auto cmp = [&](std::pair<frame_id_t, size_t> p1, std::pair<frame_id_t, size_t> p2) { return p1.second < p2.second; };
+
+  if (!v2.empty()) {
+    std::sort(v2.begin(), v2.end(), cmp);
+    fid = v2[0].first;
+  } else if (!v1.empty()) {
+    std::sort(v1.begin(), v1.end(), cmp);
+    fid = v1[0].first;
+  } else {
     return false;
   }
-  // 表示有少于k次访问的frame，采用传统lru选择驱逐frame
-  if (min_access == 0) {
-    max_frame_id = pq.top().first; //bug
-  }
-  // 这里的驱逐不能直接erase，只需要清楚history
-  *frame_id = max_frame_id;
 
-  node_store_[max_frame_id].ClearHistory();
-  node_store_[max_frame_id].SetEvictable(false);
+  *frame_id = fid;
+  node_store_[fid].ClearHistory();
+  node_store_[fid].SetEvictable(false);
   --curr_size_;
   return true;
 }
@@ -71,9 +78,9 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
   {
     std::lock_guard<std::mutex> lock(latch_);
     if (node_store_.count(frame_id) == 0U) {
-      node_store_.insert({frame_id, LRUKNode(k_)}); //bug
+      node_store_.insert({frame_id, LRUKNode(k_)});  // bug
     }
-    node_store_[frame_id].RecordAccess(current_timestamp_); //bug
+    node_store_[frame_id].RecordAccess(current_timestamp_);  // bug
     ++current_timestamp_;
   }
 }
@@ -98,15 +105,16 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
 void LRUKReplacer::Remove(frame_id_t frame_id) {
   {
     std::lock_guard<std::mutex> lock(latch_);
-    if (frame_id < 0 || frame_id >= static_cast<int>(replacer_size_)) {
-      throw Exception("Invalid frame_id");
+    if (frame_id < 0 || frame_id >= static_cast<int>(replacer_size_) || node_store_.count(frame_id) == 0U) {
+      return;
     }
-    if (node_store_.count(frame_id) == 0U || !node_store_[frame_id].IsEvictable()) {
-      throw Exception("frame is not exist or unevictable");
+    if (!node_store_[frame_id].IsEvictable()) {
+      return;
     }
     node_store_[frame_id].ClearHistory();
+    node_store_[frame_id].SetEvictable(false);
+    --curr_size_;
   }
-  SetEvictable(frame_id, false);
 }
 
 auto LRUKReplacer::Size() -> size_t {
@@ -127,7 +135,7 @@ auto bustub::LRUKNode::GetBKD() -> size_t {
 
 auto bustub::LRUKNode::IsEvictable() -> bool { return is_evictable_; }
 
-auto bustub::LRUKNode::GetLeast() -> size_t { return history_.front(); }
+auto bustub::LRUKNode::GetLeast() -> size_t { return history_.back(); }
 
 auto bustub::LRUKNode::RecordAccess(size_t time) -> void { history_.push_front(time); }
 
@@ -139,3 +147,4 @@ auto bustub::LRUKNode::SetEvictable(bool set_evictable) -> bool {
 auto bustub::LRUKNode::ClearHistory() -> void { history_.clear(); }
 
 }  // namespace bustub
+auto bustub::LRUKNode::GetHistory() -> std::list<size_t> & { return history_; }

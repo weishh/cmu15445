@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <limits>
 #include <list>
 #include <mutex>  // NOLINT
@@ -33,6 +34,7 @@ class LRUKNode {
   auto RecordAccess(size_t time) -> void;
   auto SetEvictable(bool set_evictable) -> bool;
   auto ClearHistory() -> void;
+  auto GetHistory() -> std::list<size_t> &;
   //构造函数
   explicit LRUKNode(size_t k) : k_(k) {}
   LRUKNode() = default;

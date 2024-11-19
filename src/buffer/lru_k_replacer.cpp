@@ -25,18 +25,18 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   frame_id_t fid = -1;
   std::vector<std::pair<frame_id_t, size_t>> v1;
   std::vector<std::pair<frame_id_t, size_t>> v2;
-  std::cout << "k value: " << k_ << std::endl;
-  for (auto &[fid, node] : node_store_) {
-    std::cout << "Frame " << fid << ":\n";
-    std::cout << "Evictable: " << node.IsEvictable() << "\n";
-    std::cout << "History: ";
-    // 需要在LRUKNode中添加一个方法来访问history_
-    for (auto &ts : node.GetHistory()) {
-      std::cout << ts << " ";
-    }
-    std::cout << "\n";
-  }
-  std::cout << "===========" << std::endl;
+  // std::cout << "k value: " << k_ << std::endl;
+  // for (auto &[fid, node] : node_store_) {
+  //   std::cout << "Frame " << fid << ":\n";
+  //   std::cout << "Evictable: " << node.IsEvictable() << "\n";
+  //   std::cout << "History: ";
+  //   // 需要在LRUKNode中添加一个方法来访问history_
+  //   for (auto &ts : node.GetHistory()) {
+  //     std::cout << ts << " ";
+  //   }
+  //   std::cout << "\n";
+  // }
+  // std::cout << "===========" << std::endl;
 
   for (auto &p : node_store_) {
     if (!p.second.IsEvictable()) {

@@ -20,10 +20,7 @@ namespace bustub {
 
 BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager, size_t replacer_k,
                                      LogManager *log_manager)
-    : pool_size_(pool_size),
-      disk_scheduler_(std::make_unique<DiskScheduler>(disk_manager)),
-      log_manager_(log_manager),
-      disk_manager_(disk_manager) {
+    : pool_size_(pool_size), disk_scheduler_(std::make_unique<DiskScheduler>(disk_manager)), log_manager_(log_manager) {
   // TODO(students): remove this line after you have implemented the buffer pool manager
   // throw NotImplementedException(
   //     "BufferPoolManager is not implemented yet. If you have finished implementing BPM, please remove the throw "
@@ -55,21 +52,28 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
     replacer_->RecordAccess(frame_id);
     // holding a frameid
     pid = AllocatePage();
+    std::cout << "new page called" << std::endl;
+    std::cout << "page id " << pid << std::endl;
+    std::cout << "frameid " << frame_id << std::endl;
+    std::cout << "===========" << std::endl;
     ptr = &pages_[frame_id];
     page_table_.erase(ptr->page_id_);
     page_table_.insert({pid, frame_id});
-    ++ptr->pin_count_;
+    ptr->pin_count_ = 1;
+    ptr->WLatch();
+    if (ptr->is_dirty_) {
+      auto promise = disk_scheduler_->CreatePromise();
+      auto future = promise.get_future();
+      disk_scheduler_->Schedule({true, ptr->GetData(), ptr->GetPageId(), std::move(promise)});
+      future.get();
+    }
+    ptr->page_id_ = pid;
+    ptr->ResetMemory();
+    ptr->is_dirty_ = false;
+    ptr->WUnlatch();
+    *page_id = ptr->page_id_;
+    return ptr;
   }
-  ptr->WLatch();
-  if (ptr->is_dirty_) {
-    disk_manager_->WritePage(ptr->page_id_, ptr->data_);
-  }
-  ptr->page_id_ = pid;
-  ptr->ResetMemory();
-  ptr->is_dirty_ = false;
-  ptr->WUnlatch();
-  *page_id = ptr->page_id_;
-  return ptr;
 }
 
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
@@ -81,6 +85,8 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
     std::lock_guard<std::mutex> lock(latch_);
     if (page_table_.count(page_id) != 0U) {
       ptr = &pages_[page_table_[page_id]];
+      replacer_->RecordAccess(page_table_[page_id]);
+      ++ptr->pin_count_;
       return ptr;
     }
     frame_id_t frame_id = -1;
@@ -90,34 +96,41 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
     } else if (!replacer_->Evict(&frame_id)) {
       return nullptr;
     }
+    // 旧页面写入disk，新页面读入内存
     ptr = &pages_[frame_id];
     replacer_->RecordAccess(frame_id);
     page_table_.erase(ptr->page_id_);
     page_table_.insert({page_id, frame_id});
-    ++ptr->pin_count_;
+    ptr->WLatch();
+    ptr->pin_count_ = 1;
+    std::cout << "fetch page called" << std::endl;
+    std::cout << "page id " << page_id << std::endl;
+    std::cout << "frameid " << frame_id << std::endl;
+    std::cout << "===========" << std::endl;
+    if (ptr->is_dirty_) {
+      auto promise = disk_scheduler_->CreatePromise();
+      auto future = promise.get_future();
+      disk_scheduler_->Schedule({true, ptr->GetData(), ptr->GetPageId(), std::move(promise)});
+      future.get();
+      ptr->is_dirty_ = false;
+    }
+    ptr->page_id_ = page_id;
+    ptr->ResetMemory();
+    auto promise = disk_scheduler_->CreatePromise();
+    auto future = promise.get_future();
+    disk_scheduler_->Schedule({false, ptr->GetData(), ptr->GetPageId(), std::move(promise)});
+    future.get();
+    ptr->WUnlatch();
+    return ptr;
   }
-  char data[BUSTUB_PAGE_SIZE];
-  auto promise = disk_scheduler_->CreatePromise();
-  auto future = promise.get_future();
-  disk_scheduler_->Schedule({false, data, page_id, std::move(promise)});
-  ptr->WLatch();
-  if (ptr->is_dirty_) {
-    disk_manager_->WritePage(ptr->page_id_, ptr->data_);
-  }
-  ptr->page_id_ = page_id;
-  ptr->ResetMemory();
-  ptr->is_dirty_ = false;
-  if (future.get()) {
-    memcpy(ptr->data_, data, sizeof(data));
-  }
-  ptr->WUnlatch();
-  return ptr;
 }
 
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
   Page *ptr = nullptr;
   frame_id_t frame_id = -1;
   {
+    std::cout << "unpin page called" << std::endl;
+    std::cout << "page id " << page_id << std::endl;
     std::lock_guard<std::mutex> lock(latch_);
     auto tmp = page_table_.find(page_id);
     if (tmp == page_table_.end() || pages_[tmp->second].pin_count_ == 0) {
@@ -126,14 +139,20 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
     frame_id = tmp->second;
     ptr = &pages_[frame_id];
     --ptr->pin_count_;
+    std::cout << "unpin page called" << std::endl;
+    std::cout << "page id " << page_id << std::endl;
+    std::cout << "frameid " << frame_id << std::endl;
+    std::cout << "===========" << std::endl;
+    ptr->WLatch();
+    if (is_dirty) {
+      ptr->is_dirty_ = true;
+    }
+    if (ptr->pin_count_ == 0) {
+      replacer_->SetEvictable(frame_id, true);
+    }
+    ptr->WUnlatch();
+    return true;
   }
-  ptr->WLatch();
-  ptr->is_dirty_ = is_dirty;
-  if (ptr->pin_count_ == 0) {
-    replacer_->SetEvictable(frame_id, true);
-  }
-  ptr->WUnlatch();
-  return true;
 }
 
 auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
@@ -144,14 +163,21 @@ auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
     if (page_table_.count(page_id) == 0U) {
       return false;
     }
+    frame_id = page_table_[page_id];
+    ptr = &pages_[frame_id];
+    std::cout << "flush page called" << std::endl;
+    std::cout << "page id " << page_id << std::endl;
+    std::cout << "frameid " << frame_id << std::endl;
+    std::cout << "===========" << std::endl;
+    ptr->WLatch();
+    auto promise = disk_scheduler_->CreatePromise();
+    auto future = promise.get_future();
+    disk_scheduler_->Schedule({true, ptr->GetData(), ptr->GetPageId(), std::move(promise)});
+    future.get();
+    ptr->is_dirty_ = false;
+    ptr->WUnlatch();
+    return true;
   }
-  frame_id = page_table_[page_id];
-  ptr = &pages_[frame_id];
-  ptr->WLatch();
-  disk_manager_->WritePage(page_id, ptr->data_);
-  ptr->is_dirty_ = false;
-  ptr->WUnlatch();
-  return true;
 }
 
 void BufferPoolManager::FlushAllPages() {
@@ -163,7 +189,10 @@ void BufferPoolManager::FlushAllPages() {
       continue;
     }
     ptr->WLatch();
-    disk_manager_->WritePage(ptr->page_id_, ptr->data_);
+    auto promise = disk_scheduler_->CreatePromise();
+    auto future = promise.get_future();
+    disk_scheduler_->Schedule({true, ptr->GetData(), ptr->GetPageId(), std::move(promise)});
+    future.get();
     ptr->is_dirty_ = false;
     ptr->WUnlatch();
   }

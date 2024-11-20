@@ -89,6 +89,7 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
     if (page_table_.count(page_id) != 0U) {
       ptr = &pages_[page_table_[page_id]];
       replacer_->RecordAccess(page_table_[page_id]);
+      // 这一行代码不能少
       replacer_->SetEvictable(page_table_[page_id], false);
       ++ptr->pin_count_;
       return ptr;

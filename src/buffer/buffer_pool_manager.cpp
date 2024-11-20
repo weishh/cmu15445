@@ -28,6 +28,8 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 
   // we allocate a consecutive memory space for the buffer pool
   pages_ = new Page[pool_size_];
+  std::cout << "######################" << std::endl;
+  std::cout << "pool size: " << pool_size << std::endl;
   replacer_ = std::make_unique<LRUKReplacer>(pool_size, replacer_k);
   // Initially, every page is in the free list.
   for (size_t i = 0; i < pool_size_; ++i) {
@@ -50,6 +52,7 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
       return nullptr;
     }
     replacer_->RecordAccess(frame_id);
+    replacer_->SetEvictable(frame_id, false);
     // holding a frameid
     pid = AllocatePage();
     std::cout << "new page called" << std::endl;
@@ -86,6 +89,7 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
     if (page_table_.count(page_id) != 0U) {
       ptr = &pages_[page_table_[page_id]];
       replacer_->RecordAccess(page_table_[page_id]);
+      replacer_->SetEvictable(page_table_[page_id], false);
       ++ptr->pin_count_;
       return ptr;
     }
@@ -133,17 +137,20 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
     std::cout << "page id " << page_id << std::endl;
     std::lock_guard<std::mutex> lock(latch_);
     auto tmp = page_table_.find(page_id);
-    if (tmp == page_table_.end() || pages_[tmp->second].pin_count_ == 0) {
+    if (tmp == page_table_.end()) {
       return false;
     }
     frame_id = tmp->second;
     ptr = &pages_[frame_id];
-    --ptr->pin_count_;
     std::cout << "unpin page called" << std::endl;
     std::cout << "page id " << page_id << std::endl;
     std::cout << "frameid " << frame_id << std::endl;
     std::cout << "===========" << std::endl;
     ptr->WLatch();
+    if (ptr->GetPinCount() == 0) {
+      return false;
+    }
+    --ptr->pin_count_;
     if (is_dirty) {
       ptr->is_dirty_ = true;
     }
@@ -200,6 +207,9 @@ void BufferPoolManager::FlushAllPages() {
 
 auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
   std::lock_guard<std::mutex> lock(latch_);
+  std::cout << "delete page called" << std::endl;
+  std::cout << "page id " << page_id << std::endl;
+  std::cout << "===========" << std::endl;
   Page *ptr = nullptr;
   frame_id_t frame_id = -1;
   if (page_table_.count(page_id) == 0U) {
@@ -215,6 +225,7 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
   ptr->page_id_ = INVALID_PAGE_ID;
   ptr->ResetMemory();
   ptr->is_dirty_ = false;
+  ptr->pin_count_ = 0;
   ptr->WUnlatch();
   replacer_->Remove(frame_id);
   free_list_.push_front(frame_id);

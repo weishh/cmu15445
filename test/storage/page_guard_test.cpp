@@ -23,7 +23,7 @@
 namespace bustub {
 
 // NOLINTNEXTLINE
-TEST(PageGuardTest, DISABLED_SampleTest) {
+TEST(PageGuardTest, SampleTest) {
   const size_t buffer_pool_size = 5;
   const size_t k = 2;
 
@@ -46,6 +46,7 @@ TEST(PageGuardTest, DISABLED_SampleTest) {
   {
     auto *page2 = bpm->NewPage(&page_id_temp);
     page2->RLatch();
+    std::cout << "$$$$$$$$rrrr$$$$$$$$$" << std::endl;
     auto guard2 = ReadPageGuard(bpm.get(), page2);
   }
 

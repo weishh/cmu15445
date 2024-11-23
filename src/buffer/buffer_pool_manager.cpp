@@ -236,12 +236,29 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
 
 auto BufferPoolManager::AllocatePage() -> page_id_t { return next_page_id_++; }
 
-auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard { return {this, nullptr}; }
+auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
+  auto *pg = FetchPage(page_id);
+  auto pg_guard = BasicPageGuard(this, pg);
+  return pg_guard;
+}
 
-auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard { return {this, nullptr}; }
+auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard {
+  auto *pg = FetchPage(page_id);
+  pg->RLatch();
+  return ReadPageGuard{this, pg};
+}
 
-auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard { return {this, nullptr}; }
+auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
+  auto *pg = FetchPage(page_id);
+  pg->WLatch();
+  return WritePageGuard{this, pg};
+}
 
-auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard { return {this, nullptr}; }
+auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard {
+  page_id_t pgid = -1;
+  auto *page = NewPage(&pgid);
+  auto page_guard = BasicPageGuard(this, page);
+  return page_guard;
+}
 
 }  // namespace bustub

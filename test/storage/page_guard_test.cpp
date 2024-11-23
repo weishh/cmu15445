@@ -50,6 +50,8 @@ TEST(PageGuardTest, SampleTest) {
     auto guard2 = ReadPageGuard(bpm.get(), page2);
   }
 
+  page_id_t pgid = -1;
+  auto tmp = bpm->NewPageGuarded(&pgid);
   // Shutdown the disk manager and remove the temporary file we created.
   disk_manager->ShutDown();
 }

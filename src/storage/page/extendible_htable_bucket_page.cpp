@@ -28,7 +28,7 @@ void ExtendibleHTableBucketPage<K, V, KC>::Init(uint32_t max_size) {
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::Lookup(const K &key, V &value, const KC &cmp) const -> bool {
   for (uint32_t i = 0; i < Size(); ++i) {
-    if (cmp(key, array_[i].first)) {
+    if (!cmp(key, array_[i].first)) {
       value = array_[i].second;
       return true;
     }
@@ -38,7 +38,10 @@ auto ExtendibleHTableBucketPage<K, V, KC>::Lookup(const K &key, V &value, const 
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::Insert(const K &key, const V &value, const KC &cmp) -> bool {
-  return false;
+  if (IsFull() || Lookup(key,value, cmp)) {
+    return false;
+  }
+  auto idx = 
 }
 
 template <typename K, typename V, typename KC>

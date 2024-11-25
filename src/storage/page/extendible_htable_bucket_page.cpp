@@ -20,11 +20,19 @@ namespace bustub {
 
 template <typename K, typename V, typename KC>
 void ExtendibleHTableBucketPage<K, V, KC>::Init(uint32_t max_size) {
-  throw NotImplementedException("ExtendibleHTableBucketPage not implemented");
+  auto defmaxsz = HTableBucketArraySize(sizeof(MappingType));
+  max_size_ = std::min(max_size, static_cast<uint32_t>(defmaxsz));
+  memset(array_, 0, sizeof(array_));
 }
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::Lookup(const K &key, V &value, const KC &cmp) const -> bool {
+  for (uint32_t i = 0; i < Size(); ++i) {
+    if (cmp(key, array_[i].first)) {
+      value = array_[i].second;
+      return true;
+    }
+  }
   return false;
 }
 
@@ -60,17 +68,17 @@ auto ExtendibleHTableBucketPage<K, V, KC>::EntryAt(uint32_t bucket_idx) const ->
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::Size() const -> uint32_t {
-  return 0;
+  return size_;
 }
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::IsFull() const -> bool {
-  return false;
+  return max_size_ == size_;
 }
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::IsEmpty() const -> bool {
-  return false;
+  return if size_ > 0 : false : true;
 }
 
 template class ExtendibleHTableBucketPage<int, int, IntComparator>;

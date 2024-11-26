@@ -47,7 +47,7 @@ auto ExtendibleHTableDirectoryPage::GetGlobalDepthMask() const -> uint32_t { ret
 auto ExtendibleHTableDirectoryPage::GetLocalDepthMask(uint32_t bucket_idx) const -> uint32_t {
   return (1U << GetLocalDepth(bucket_idx)) - 1;
 }
-
+// 增加全局深度和减小全局深度都需要对多出来和减少的目录项进行处理
 auto ExtendibleHTableDirectoryPage::GetGlobalDepth() const -> uint32_t { return global_depth_; }
 
 void ExtendibleHTableDirectoryPage::IncrGlobalDepth() { global_depth_ += 1; }

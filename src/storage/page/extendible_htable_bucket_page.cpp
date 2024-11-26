@@ -20,7 +20,7 @@ namespace bustub {
 
 template <typename K, typename V, typename KC>
 void ExtendibleHTableBucketPage<K, V, KC>::Init(uint32_t max_size) {
-  auto defmaxsz = HTableBucketArraySize(sizeof(MappingType));
+  auto defmaxsz = HTableBucketArraySize(sizeof(std::pair<K, V>));
   max_size_ = std::min(max_size, static_cast<uint32_t>(defmaxsz));
   memset(array_, 0, sizeof(array_));
 }
@@ -38,35 +38,71 @@ auto ExtendibleHTableBucketPage<K, V, KC>::Lookup(const K &key, V &value, const 
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::Insert(const K &key, const V &value, const KC &cmp) -> bool {
-  if (IsFull() || Lookup(key,value, cmp)) {
+  if (IsFull()) {
     return false;
   }
-  auto idx = 
+  for (uint32_t i = 0; i < Size(); ++i) {
+    if (!cmp(key, array_[i].first)) {
+      return false;
+    }
+  }
+  auto idx = Size();
+  ++size_;
+  array_[idx] = {key, value};
+  return true;
 }
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::Remove(const K &key, const KC &cmp) -> bool {
-  return false;
+  uint32_t l = 0;
+  bool flag = false;
+  for (uint32_t r = 0; r < Size(); ++r) {
+    if (cmp(key, array_[r].first) != 0) {
+      array_[l++] = array_[r];
+    } else {
+      flag = true;
+    }
+  }
+  if (flag) {
+    --size_;
+  }
+  return flag;
 }
 
 template <typename K, typename V, typename KC>
 void ExtendibleHTableBucketPage<K, V, KC>::RemoveAt(uint32_t bucket_idx) {
-  throw NotImplementedException("ExtendibleHTableBucketPage not implemented");
+  if (bucket_idx >= Size()) {
+    return;
+  }
+  uint32_t l = bucket_idx;
+  for (uint32_t r = bucket_idx + 1; r < Size(); ++r) {
+    array_[l++] = array_[r];
+  }
+  --size_;
 }
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::KeyAt(uint32_t bucket_idx) const -> K {
-  return {};
+  if (bucket_idx >= Size()) {
+    return K{};
+  }
+  return array_[bucket_idx].first;
 }
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::ValueAt(uint32_t bucket_idx) const -> V {
-  return {};
+  if (bucket_idx >= Size()) {
+    return V{};
+  }
+  return array_[bucket_idx].second;
 }
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::EntryAt(uint32_t bucket_idx) const -> const std::pair<K, V> & {
-  return array_[0];
+  if (bucket_idx >= Size()) {
+    throw Exception("invalid bucket_idx");
+  }
+  return array_[bucket_idx];
 }
 
 template <typename K, typename V, typename KC>
@@ -81,7 +117,7 @@ auto ExtendibleHTableBucketPage<K, V, KC>::IsFull() const -> bool {
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::IsEmpty() const -> bool {
-  return if size_ > 0 : false : true;
+  return size_ > 0 ? false : true;
 }
 
 template class ExtendibleHTableBucketPage<int, int, IntComparator>;

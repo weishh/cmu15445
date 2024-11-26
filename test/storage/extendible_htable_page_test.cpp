@@ -140,7 +140,7 @@ TEST(ExtendibleHTableTest, HeaderDirectoryPageSampleTest) {
     bucket_page_4->Init(10);
 
     directory_page->SetBucketPageId(0, bucket_page_id_1);
-
+    directory_page->PrintDirectory();
     /*
     ======== DIRECTORY (global_depth_: 0) ========
     | bucket_idx | page_id | local_depth |
@@ -157,7 +157,7 @@ TEST(ExtendibleHTableTest, HeaderDirectoryPageSampleTest) {
     directory_page->IncrGlobalDepth();
     directory_page->SetBucketPageId(1, bucket_page_id_2);
     directory_page->SetLocalDepth(1, 1);
-
+    directory_page->PrintDirectory();
     /*
     ======== DIRECTORY (global_depth_: 1) ========
     | bucket_idx | page_id | local_depth |
@@ -178,7 +178,7 @@ TEST(ExtendibleHTableTest, HeaderDirectoryPageSampleTest) {
     directory_page->SetLocalDepth(0, 2);
     directory_page->IncrGlobalDepth();
     directory_page->SetBucketPageId(2, bucket_page_id_3);
-
+    directory_page->PrintDirectory();
     /*
     ======== DIRECTORY (global_depth_: 2) ========
     | bucket_idx | page_id | local_depth |

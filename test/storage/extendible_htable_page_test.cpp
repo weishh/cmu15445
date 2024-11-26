@@ -138,7 +138,7 @@ TEST(ExtendibleHTableTest, HeaderDirectoryPageSampleTest) {
     BasicPageGuard bucket_guard_4 = bpm->NewPageGuarded(&bucket_page_id_4);
     auto bucket_page_4 = bucket_guard_4.AsMut<ExtendibleHTableBucketPage<GenericKey<8>, RID, GenericComparator<8>>>();
     bucket_page_4->Init(10);
-
+    // global depth最大为3
     directory_page->SetBucketPageId(0, bucket_page_id_1);
     directory_page->PrintDirectory();
     /*
@@ -217,6 +217,7 @@ TEST(ExtendibleHTableTest, HeaderDirectoryPageSampleTest) {
     |    7    |    3    |    1    |
     ================ END DIRECTORY ================
     */
+    directory_page->PrintDirectory();
     directory_page->VerifyIntegrity();
     ASSERT_EQ(directory_page->Size(), 8);
     ASSERT_EQ(directory_page->GetBucketPageId(0), bucket_page_id_1);
@@ -257,6 +258,7 @@ TEST(ExtendibleHTableTest, HeaderDirectoryPageSampleTest) {
     ================ END DIRECTORY ================
     */
 
+    directory_page->PrintDirectory();
     ASSERT_EQ(directory_page->CanShrink(), true);
     directory_page->DecrGlobalDepth();
 
@@ -269,7 +271,7 @@ TEST(ExtendibleHTableTest, HeaderDirectoryPageSampleTest) {
     |    3    |    3    |    1    |
     ================ END DIRECTORY ================
     */
-
+    directory_page->PrintDirectory();
     directory_page->VerifyIntegrity();
     ASSERT_EQ(directory_page->Size(), 4);
     ASSERT_EQ(directory_page->CanShrink(), false);

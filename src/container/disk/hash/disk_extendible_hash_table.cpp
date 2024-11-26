@@ -41,15 +41,28 @@ DiskExtendibleHashTable<K, V, KC>::DiskExtendibleHashTable(const std::string &na
       header_max_depth_(header_max_depth),
       directory_max_depth_(directory_max_depth),
       bucket_max_size_(bucket_max_size) {
-  throw NotImplementedException("DiskExtendibleHashTable is not implemented");
+  // throw NotImplementedException("DiskExtendibleHashTable is not implemented");
+  auto header_page = bpm_->NewPageGuarded(&header_page_id_);
+  
 }
 
 /*****************************************************************************
  * SEARCH
  *****************************************************************************/
 template <typename K, typename V, typename KC>
-auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *result, Transaction *transaction) const
-    -> bool {
+auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *result,
+                                                 Transaction *transaction) const -> bool {
+  auto header_page = bpm_->FetchPageRead(header_page_id_).template As<ExtendibleHTableHeaderPage>();
+  auto hash = hash_fn_.GetHash(key);
+  auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
+  auto directory_page = bpm_->FetchPageRead(directory_pgid).template As<ExtendibleHTableDirectoryPage>();
+  auto bucket_pgid = directory_page->GetBucketPageId(directory_page->HashToBucketIndex(hash));
+  auto bucket_page = bpm_->FetchPageRead(bucket_pgid).template As<ExtendibleHTableBucketPage<K, V, KC>>();
+  V value;
+  if (bucket_page->Lookup(key, value, cmp_)) {
+    result->push_back(value);
+    return true;
+  }
   return false;
 }
 

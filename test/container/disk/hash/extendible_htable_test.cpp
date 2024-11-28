@@ -43,7 +43,7 @@ TEST(ExtendibleHTableTest, InsertTest1) {
   }
 
   ht.VerifyIntegrity();
-
+  ht.Insert(num_keys, num_keys);
   // attempt another insert, this should fail because table is full
   ASSERT_FALSE(ht.Insert(num_keys, num_keys));
 }

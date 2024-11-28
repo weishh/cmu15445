@@ -136,6 +136,13 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   }
   auto bucket_idx = directory_page->HashToBucketIndex(hash);
   // 分裂操作,获得旧的localdepth
+  // 应该先分配bucket page然后再更改目录
+  page_id_t new_bck_pgid = INVALID_PAGE_ID;
+  auto new_bucket_page = bpm_->NewPageGuarded(&new_bck_pgid);
+  if (new_bck_pgid == INVALID_PAGE_ID) {
+    std::cout << "无法分配bucket page页面" << std::endl;
+    return false;
+  }
   auto local_depth = directory_page->GetLocalDepth(bucket_idx);
   if (local_depth == directory_page->GetGlobalDepth()) {
     // 该目录页已经满了，无法创建新的bucket
@@ -146,13 +153,9 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     directory_page->IncrGlobalDepth();
   }
   auto local_depth_mask = (1U << local_depth) - 1;
-  page_id_t new_bck_pgid = INVALID_PAGE_ID;
-  auto new_bucket_page = bpm_->NewPageGuarded(&new_bck_pgid);
-  if (new_bck_pgid == INVALID_PAGE_ID) {
-    std::cout << "无法分配bucket page页面" << std::endl;
-    return false;
-  }
+
   auto new_bkg = new_bucket_page.UpgradeWrite().template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+  new_bkg->Init(bucket_max_size_);
   for (uint32_t idx = 0; idx < 1U << directory_page->GetGlobalDepth(); ++idx) {
     if ((idx & local_depth_mask) == (hash & local_depth_mask)) {
       directory_page->SetLocalDepth(idx, local_depth + 1);
@@ -175,8 +178,8 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     bucket_page->Remove(key, cmp_);
   }
 
-  //分裂完后新数据要插入
-  Insert(key,value, transaction);
+  // 分裂完后新数据要插入
+  Insert(key, value, transaction);
 
   return true;
 }

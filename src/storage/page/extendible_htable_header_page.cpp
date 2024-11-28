@@ -23,10 +23,13 @@ void ExtendibleHTableHeaderPage::Init(uint32_t max_depth) {
 }
 
 auto ExtendibleHTableHeaderPage::HashToDirectoryIndex(uint32_t hash) const -> uint32_t {
+  if(max_depth_ == 0){
+    return 0;
+  }
   return hash >> (32 - max_depth_);
 }
 
-auto ExtendibleHTableHeaderPage::GetDirectoryPageId(uint32_t directory_idx) const -> uint32_t {
+auto ExtendibleHTableHeaderPage::GetDirectoryPageId(uint32_t directory_idx) const -> page_id_t {
   return directory_page_ids_[directory_idx];
 }
 

@@ -78,7 +78,107 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
 
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Transaction *transaction) -> bool {
-  return false;
+  auto header_page = bpm_->FetchPageWrite(header_page_id_).template AsMut<ExtendibleHTableHeaderPage>();
+  auto hash = hash_fn_.GetHash(key);
+  auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
+  // 目录页没有，进行创建
+  if (directory_pgid == INVALID_PAGE_ID) {
+    auto dir_pg = bpm_->NewPageGuarded(&directory_pgid);
+    if (directory_pgid == INVALID_PAGE_ID) {
+      return false;
+    }
+    header_page->SetDirectoryPageId(header_page->HashToDirectoryIndex(hash), directory_pgid);
+    auto directory_page = dir_pg.UpgradeWrite().template AsMut<ExtendibleHTableDirectoryPage>();
+    directory_page->Init(directory_max_depth_);
+    auto bucket_pgid = directory_page->GetBucketPageId(directory_page->HashToBucketIndex(hash));
+    auto bk_pg = bpm_->NewPageGuarded(&bucket_pgid);
+    if (bucket_pgid == INVALID_PAGE_ID) {
+      return false;
+    }
+    directory_page->SetBucketPageId(directory_page->HashToBucketIndex(hash), bucket_pgid);
+    auto bucket_page = bk_pg.UpgradeWrite().template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+    bucket_page->Init(bucket_max_size_);
+    if (bucket_page->Insert(key, value, cmp_)) {
+      return true;
+    }
+    return false;
+  }
+  // 目录页有但是bucket页没有
+  auto directory_page = bpm_->FetchPageWrite(directory_pgid).template AsMut<ExtendibleHTableDirectoryPage>();
+  auto bucket_pgid = directory_page->GetBucketPageId(directory_page->HashToBucketIndex(hash));
+  if (bucket_pgid == INVALID_PAGE_ID) {
+    auto bk_pg = bpm_->NewPageGuarded(&bucket_pgid);
+    if (bucket_pgid == INVALID_PAGE_ID) {
+      return false;
+    }
+    directory_page->SetBucketPageId(directory_page->HashToBucketIndex(hash), bucket_pgid);
+    directory_page->SetLocalDepth(directory_page->HashToBucketIndex(hash), directory_page->GetGlobalDepth());
+    auto bucket_page = bk_pg.UpgradeWrite().template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+    bucket_page->Init(bucket_max_size_);
+    if (bucket_page->Insert(key, value, cmp_)) {
+      return true;
+    }
+    return false;
+  }
+  // 都存在
+  auto bucket_page = bpm_->FetchPageWrite(bucket_pgid).template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+  V tmpvalue;
+  if (bucket_page->Lookup(key, tmpvalue, cmp_)) {
+    std::cout << "key already exist" << std::endl;
+    return false;
+  }
+
+  if (!bucket_page->IsFull()) {
+    if (bucket_page->Insert(key, value, cmp_)) {
+      return true;
+    }
+    return false;
+  }
+  auto bucket_idx = directory_page->HashToBucketIndex(hash);
+  // 分裂操作,获得旧的localdepth
+  auto local_depth = directory_page->GetLocalDepth(bucket_idx);
+  if (local_depth == directory_page->GetGlobalDepth()) {
+    // 该目录页已经满了，无法创建新的bucket
+    if (directory_page->GetGlobalDepth() == directory_page->GetMaxDepth()) {
+      return false;
+    }
+    directory_page->IncrLocalDepth(bucket_idx);
+    directory_page->IncrGlobalDepth();
+  }
+  auto local_depth_mask = (1U << local_depth) - 1;
+  page_id_t new_bck_pgid = INVALID_PAGE_ID;
+  auto new_bucket_page = bpm_->NewPageGuarded(&new_bck_pgid);
+  if (new_bck_pgid == INVALID_PAGE_ID) {
+    std::cout << "无法分配bucket page页面" << std::endl;
+    return false;
+  }
+  auto new_bkg = new_bucket_page.UpgradeWrite().template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+  for (uint32_t idx = 0; idx < 1U << directory_page->GetGlobalDepth(); ++idx) {
+    if ((idx & local_depth_mask) == (hash & local_depth_mask)) {
+      directory_page->SetLocalDepth(idx, local_depth + 1);
+      if ((idx >> local_depth) & 1U) {
+        directory_page->SetBucketPageId(idx, new_bck_pgid);
+      }
+    }
+  }
+  std::vector<K> remove_key;
+  for (uint32_t idx = 0; idx < bucket_page->Size(); ++idx) {
+    auto tmpidx = directory_page->HashToBucketIndex(hash_fn_.GetHash(bucket_page->KeyAt(idx)));
+    auto tmppair = bucket_page->EntryAt(idx);
+    if ((tmpidx >> local_depth) & 1U) {
+      new_bkg->Insert(tmppair.first, tmppair.second, cmp_);
+      remove_key.push_back(bucket_page->KeyAt(idx));
+    }
+  }
+
+  for (auto key : remove_key) {
+    bucket_page->Remove(key, cmp_);
+  }
+
+  //分裂完后新数据要插入
+  Insert(key,value, transaction);
+
+  return true;
 }
 
 template <typename K, typename V, typename KC>

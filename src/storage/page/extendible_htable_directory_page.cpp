@@ -94,7 +94,7 @@ void ExtendibleHTableDirectoryPage::IncrLocalDepth(uint32_t bucket_idx) { local_
 
 void ExtendibleHTableDirectoryPage::DecrLocalDepth(uint32_t bucket_idx) { local_depths_[bucket_idx] -= 1; }
 
-auto ExtendibleHTableDirectoryPage::GetMaxDepth() const -> uint32_t { return HTABLE_DIRECTORY_MAX_DEPTH; }
+auto ExtendibleHTableDirectoryPage::GetMaxDepth() const -> uint32_t { return max_depth_; }
 
 auto ExtendibleHTableDirectoryPage::MaxSize() const -> uint32_t { return 1 << GetMaxDepth(); }
 

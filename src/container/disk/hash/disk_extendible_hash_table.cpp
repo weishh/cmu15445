@@ -53,7 +53,7 @@ template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *result,
                                                  Transaction *transaction) const -> bool {
   auto header_page = bpm_->FetchPageRead(header_page_id_).template As<ExtendibleHTableHeaderPage>();
-  auto hash = hash_fn_.GetHash(key);
+  auto hash = DiskExtendibleHashTable<K, V, KC>::Hash(key);
   auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
   if (directory_pgid == INVALID_PAGE_ID) {
     return false;
@@ -79,7 +79,8 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Transaction *transaction) -> bool {
   auto header_page = bpm_->FetchPageWrite(header_page_id_).template AsMut<ExtendibleHTableHeaderPage>();
-  auto hash = hash_fn_.GetHash(key);
+  auto hash = DiskExtendibleHashTable<K, V, KC>::Hash(key);
+  std::cout << "hash value" << hash << std::endl;
   auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
   // 目录页没有，进行创建
   if (directory_pgid == INVALID_PAGE_ID) {
@@ -99,12 +100,17 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     auto bucket_page = bk_pg.UpgradeWrite().template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
     bucket_page->Init(bucket_max_size_);
     if (bucket_page->Insert(key, value, cmp_)) {
+      std::cout << "深度信息： " << directory_page->GetGlobalDepth() << " "
+                << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+      std::cout << "插入成功，目录页和bucket页都不存在。" << header_page->HashToDirectoryIndex(hash) << " "
+                << directory_page->HashToBucketIndex(hash) << std::endl;
       return true;
     }
     return false;
   }
   // 目录页有但是bucket页没有
   auto directory_page = bpm_->FetchPageWrite(directory_pgid).template AsMut<ExtendibleHTableDirectoryPage>();
+  directory_page->PrintDirectory();
   auto bucket_pgid = directory_page->GetBucketPageId(directory_page->HashToBucketIndex(hash));
   if (bucket_pgid == INVALID_PAGE_ID) {
     auto bk_pg = bpm_->NewPageGuarded(&bucket_pgid);
@@ -116,6 +122,10 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     auto bucket_page = bk_pg.UpgradeWrite().template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
     bucket_page->Init(bucket_max_size_);
     if (bucket_page->Insert(key, value, cmp_)) {
+      std::cout << "深度信息： " << directory_page->GetGlobalDepth() << " "
+                << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+      std::cout << "插入成功，目录页存在，但是bucket页都不存在。" << header_page->HashToDirectoryIndex(hash) << " "
+                << directory_page->HashToBucketIndex(hash) << std::endl;
       return true;
     }
     return false;
@@ -130,6 +140,10 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
 
   if (!bucket_page->IsFull()) {
     if (bucket_page->Insert(key, value, cmp_)) {
+      std::cout << "深度信息： " << directory_page->GetGlobalDepth() << " "
+                << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+      std::cout << "插入成功，都存在，不进行桶分裂。" << header_page->HashToDirectoryIndex(hash) << " "
+                << directory_page->HashToBucketIndex(hash) << std::endl;
       return true;
     }
     return false;
@@ -137,18 +151,23 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   auto bucket_idx = directory_page->HashToBucketIndex(hash);
   // 分裂操作,获得旧的localdepth
   // 应该先分配bucket page然后再更改目录
+  auto local_depth = directory_page->GetLocalDepth(bucket_idx);
+  if (local_depth == directory_page->GetGlobalDepth() &&
+      directory_page->GetGlobalDepth() == directory_page->GetMaxDepth()) {
+    std::cout << "深度信息： " << directory_page->GetGlobalDepth() << " "
+              << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+    std::cout << "插入失败，已满，无法插入新元素。" << header_page->HashToDirectoryIndex(hash) << " "
+              << directory_page->HashToBucketIndex(hash) << std::endl;
+    return false;
+  }
   page_id_t new_bck_pgid = INVALID_PAGE_ID;
-  auto new_bucket_page = bpm_->NewPageGuarded(&new_bck_pgid);
+  BasicPageGuard new_bucket_page = bpm_->NewPageGuarded(&new_bck_pgid);
   if (new_bck_pgid == INVALID_PAGE_ID) {
     std::cout << "无法分配bucket page页面" << std::endl;
     return false;
-  }
-  auto local_depth = directory_page->GetLocalDepth(bucket_idx);
+  };
   if (local_depth == directory_page->GetGlobalDepth()) {
-    // 该目录页已经满了，无法创建新的bucket
-    if (directory_page->GetGlobalDepth() == directory_page->GetMaxDepth()) {
-      return false;
-    }
+    // 扩展目录
     directory_page->IncrLocalDepth(bucket_idx);
     directory_page->IncrGlobalDepth();
   }
@@ -166,7 +185,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   }
   std::vector<K> remove_key;
   for (uint32_t idx = 0; idx < bucket_page->Size(); ++idx) {
-    auto tmpidx = directory_page->HashToBucketIndex(hash_fn_.GetHash(bucket_page->KeyAt(idx)));
+    auto tmpidx = directory_page->HashToBucketIndex(DiskExtendibleHashTable<K, V, KC>::Hash(bucket_page->KeyAt(idx)));
     auto tmppair = bucket_page->EntryAt(idx);
     if ((tmpidx >> local_depth) & 1U) {
       new_bkg->Insert(tmppair.first, tmppair.second, cmp_);
@@ -177,7 +196,10 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   for (auto key : remove_key) {
     bucket_page->Remove(key, cmp_);
   }
-
+  std::cout << "深度信息： " << directory_page->GetGlobalDepth() << " "
+            << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+  std::cout << "bucketpage已满，分裂一次，进行递归插入。" << header_page->HashToDirectoryIndex(hash) << " "
+            << directory_page->HashToBucketIndex(hash) << std::endl;
   // 分裂完后新数据要插入
   Insert(key, value, transaction);
 

@@ -230,7 +230,38 @@ void DiskExtendibleHashTable<K, V, KC>::UpdateDirectoryMapping(ExtendibleHTableD
  *****************************************************************************/
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transaction) -> bool {
-  return false;
+  auto hash = DiskExtendibleHashTable<K, V, KC>::Hash(key);
+  auto header_page = bpm_->FetchPageRead(header_page_id_).template As<ExtendibleHTableHeaderPage>();
+  auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
+  if (directory_pgid == INVALID_PAGE_ID) {
+    std::cout << "invalid directory_page_id" << std::endl;
+    return false;
+  }
+  auto directory_basic_page = bpm_->FetchPageBasic(directory_pgid);
+  {
+    auto directory_read_page = directory_basic_page.UpgradeRead().template As<ExtendibleHTableDirectoryPage>();
+    auto bucket_pgid = directory_read_page->GetBucketPageId(directory_read_page->HashToBucketIndex(hash));
+    if (bucket_pgid == INVALID_PAGE_ID) {
+      std::cout << "invalid bucket_page_id" << std::endl;
+      return false;
+    }
+    auto bucket_page = bpm_->FetchPageWrite(bucket_pgid).template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+    V value;
+    if (!bucket_page->Lookup(key, value, cmp_)) {
+      std::cout << "not such key in bucket page" << std::endl;
+      return false;
+    }
+    if (!bucket_page->Remove(key, cmp_)) {
+      std::cout << "bucket remove error" << std::endl;
+      return false;
+    }
+  }
+  directory_basic_page = bpm_->FetchPageBasic(directory_pgid);
+  auto directory_write_page = directory_basic_page.UpgradeWrite().template AsMut<ExtendibleHTableDirectoryPage>();
+  while (directory_write_page->CanShrink()) {
+    directory_write_page->DecrGlobalDepth();
+  }
+  return true;
 }
 
 template class DiskExtendibleHashTable<int, int, IntComparator>;

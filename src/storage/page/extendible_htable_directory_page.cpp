@@ -74,7 +74,7 @@ void ExtendibleHTableDirectoryPage::DecrGlobalDepth() { global_depth_ -= 1; }
 auto ExtendibleHTableDirectoryPage::CanShrink() -> bool {
   auto maxlocaldp = GetLocalDepth(0);
   auto globaldp = GetGlobalDepth();
-  for (uint64_t i = 0; i < HTABLE_DIRECTORY_ARRAY_SIZE; ++i) {
+  for (uint64_t i = 0; i < 1U << GetGlobalDepth(); ++i) {
     maxlocaldp = std::max(maxlocaldp, GetLocalDepth(i));
   }
   return globaldp > maxlocaldp;

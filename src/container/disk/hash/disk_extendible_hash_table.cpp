@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -50,20 +51,23 @@ DiskExtendibleHashTable<K, V, KC>::DiskExtendibleHashTable(const std::string &na
  * SEARCH
  *****************************************************************************/
 template <typename K, typename V, typename KC>
-auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *result,
-                                                 Transaction *transaction) const -> bool {
-  auto header_page = bpm_->FetchPageRead(header_page_id_).template As<ExtendibleHTableHeaderPage>();
+auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *result, Transaction *transaction) const
+    -> bool {
+  auto header_pageguard = bpm_->FetchPageRead(header_page_id_);
+  auto header_page = header_pageguard.template As<ExtendibleHTableHeaderPage>();
   auto hash = DiskExtendibleHashTable<K, V, KC>::Hash(key);
   auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
   if (directory_pgid == INVALID_PAGE_ID) {
     return false;
   }
-  auto directory_page = bpm_->FetchPageRead(directory_pgid).template As<ExtendibleHTableDirectoryPage>();
+  auto directory_pageguard = bpm_->FetchPageRead(directory_pgid);
+  auto directory_page = directory_pageguard.template As<ExtendibleHTableDirectoryPage>();
   auto bucket_pgid = directory_page->GetBucketPageId(directory_page->HashToBucketIndex(hash));
   if (bucket_pgid == INVALID_PAGE_ID) {
     return false;
   }
-  auto bucket_page = bpm_->FetchPageRead(bucket_pgid).template As<ExtendibleHTableBucketPage<K, V, KC>>();
+  auto bucket_pageguard = bpm_->FetchPageRead(bucket_pgid);
+  auto bucket_page = bucket_pageguard.template As<ExtendibleHTableBucketPage<K, V, KC>>();
   V value;
   if (bucket_page->Lookup(key, value, cmp_)) {
     result->push_back(value);
@@ -78,11 +82,14 @@ auto DiskExtendibleHashTable<K, V, KC>::GetValue(const K &key, std::vector<V> *r
 
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Transaction *transaction) -> bool {
-  auto header_page = bpm_->FetchPageWrite(header_page_id_).template AsMut<ExtendibleHTableHeaderPage>();
+  auto header_page_guard = bpm_->FetchPageWrite(header_page_id_);
+  auto header_page = header_page_guard.template AsMut<ExtendibleHTableHeaderPage>();
   auto hash = DiskExtendibleHashTable<K, V, KC>::Hash(key);
-  std::cout << "hash value" << hash << std::endl;
+  std::cout << "Thread id:" << std::this_thread::get_id() << " hash value:" << hash << "!!!!!!!!!!inserted!!!!!!!!!!!"
+            << std::endl;
   auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
-  // 目录页没有，进行创建
+
+  // 目录页没有，进行创建===========================================================================
   if (directory_pgid == INVALID_PAGE_ID) {
     auto dir_pg = bpm_->NewPageGuarded(&directory_pgid);
     if (directory_pgid == INVALID_PAGE_ID) {
@@ -100,16 +107,19 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     auto bucket_page = bk_pg.UpgradeWrite().template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
     bucket_page->Init(bucket_max_size_);
     if (bucket_page->Insert(key, value, cmp_)) {
-      std::cout << "深度信息： " << directory_page->GetGlobalDepth() << " "
-                << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
-      std::cout << "插入成功，目录页和bucket页都不存在。" << header_page->HashToDirectoryIndex(hash) << " "
-                << directory_page->HashToBucketIndex(hash) << std::endl;
+      std::cout << "Thread id:" << std::this_thread::get_id() << "深度信息： " << directory_page->GetGlobalDepth()
+                << " " << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+      std::cout << "Thread id:" << std::this_thread::get_id() << "插入成功，目录页和bucket页都不存在。"
+                << header_page->HashToDirectoryIndex(hash) << " " << directory_page->HashToBucketIndex(hash)
+                << std::endl;
       return true;
     }
     return false;
   }
+  // ===============================================================================================
   // 目录页有但是bucket页没有
-  auto directory_page = bpm_->FetchPageWrite(directory_pgid).template AsMut<ExtendibleHTableDirectoryPage>();
+  auto directory_pageguard = bpm_->FetchPageWrite(directory_pgid);
+  auto directory_page = directory_pageguard.template AsMut<ExtendibleHTableDirectoryPage>();
   directory_page->PrintDirectory();
   auto bucket_pgid = directory_page->GetBucketPageId(directory_page->HashToBucketIndex(hash));
   if (bucket_pgid == INVALID_PAGE_ID) {
@@ -122,16 +132,20 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     auto bucket_page = bk_pg.UpgradeWrite().template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
     bucket_page->Init(bucket_max_size_);
     if (bucket_page->Insert(key, value, cmp_)) {
-      std::cout << "深度信息： " << directory_page->GetGlobalDepth() << " "
-                << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
-      std::cout << "插入成功，目录页存在，但是bucket页都不存在。" << header_page->HashToDirectoryIndex(hash) << " "
-                << directory_page->HashToBucketIndex(hash) << std::endl;
+      std::cout << "Thread id:" << std::this_thread::get_id() << "深度信息： " << directory_page->GetGlobalDepth()
+                << " " << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+      std::cout << "Thread id:" << std::this_thread::get_id() << "插入成功，目录页存在，但是bucket页都不存在。"
+                << header_page->HashToDirectoryIndex(hash) << " " << directory_page->HashToBucketIndex(hash)
+                << std::endl;
       return true;
     }
     return false;
   }
+  // ===============================================================================================
+
   // 都存在
-  auto bucket_page = bpm_->FetchPageWrite(bucket_pgid).template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+  auto bucket_pageguard = bpm_->FetchPageWrite(bucket_pgid);
+  auto bucket_page = bucket_pageguard.template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
   V tmpvalue;
   if (bucket_page->Lookup(key, tmpvalue, cmp_)) {
     std::cout << "key already exist" << std::endl;
@@ -140,30 +154,35 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
 
   if (!bucket_page->IsFull()) {
     if (bucket_page->Insert(key, value, cmp_)) {
-      std::cout << "深度信息： " << directory_page->GetGlobalDepth() << " "
-                << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
-      std::cout << "插入成功，都存在，不进行桶分裂。" << header_page->HashToDirectoryIndex(hash) << " "
-                << directory_page->HashToBucketIndex(hash) << std::endl;
+      // std::cout << "Thread id:" << std::this_thread::get_id() << " directory pgid " << directory_pgid << std::endl;
+      // directory_page->PrintDirectory();
+      // std::cout << "Thread id:" << std::this_thread::get_id() << "directory pgid " << directory_pgid << std::endl;
+      // std::cout << "Thread id:" << std::this_thread::get_id() << " 深度信息： " << directory_page->GetGlobalDepth()
+      //           << " " << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+      std::cout << "Thread id:" << std::this_thread::get_id() << "插入成功，都存在，不进行桶分裂。"
+                << header_page->HashToDirectoryIndex(hash) << " " << directory_page->HashToBucketIndex(hash)
+                << std::endl;
       return true;
     }
     return false;
   }
+  // ===============================================================================================
+  header_page_guard.Drop();
   auto bucket_idx = directory_page->HashToBucketIndex(hash);
   // 分裂操作,获得旧的localdepth
   // 应该先分配bucket page然后再更改目录
   auto local_depth = directory_page->GetLocalDepth(bucket_idx);
   if (local_depth == directory_page->GetGlobalDepth() &&
       directory_page->GetGlobalDepth() == directory_page->GetMaxDepth()) {
-    std::cout << "深度信息： " << directory_page->GetGlobalDepth() << " "
+    std::cout << "Thread id:" << std::this_thread::get_id() << " 深度信息： " << directory_page->GetGlobalDepth() << " "
               << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
-    std::cout << "插入失败，已满，无法插入新元素。" << header_page->HashToDirectoryIndex(hash) << " "
-              << directory_page->HashToBucketIndex(hash) << std::endl;
+    std::cout << "插入失败，已满，无法插入新元素。" << directory_page->HashToBucketIndex(hash) << std::endl;
     return false;
   }
   page_id_t new_bck_pgid = INVALID_PAGE_ID;
   BasicPageGuard new_bucket_page = bpm_->NewPageGuarded(&new_bck_pgid);
   if (new_bck_pgid == INVALID_PAGE_ID) {
-    std::cout << "无法分配bucket page页面" << std::endl;
+    std::cout << "Thread id:" << std::this_thread::get_id() << "无法分配bucket page页面" << std::endl;
     return false;
   };
   if (local_depth == directory_page->GetGlobalDepth()) {
@@ -196,14 +215,12 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   for (auto key : remove_key) {
     bucket_page->Remove(key, cmp_);
   }
-  std::cout << "深度信息： " << directory_page->GetGlobalDepth() << " "
+  std::cout << "Thread id:" << std::this_thread::get_id() << " 深度信息： " << directory_page->GetGlobalDepth() << " "
             << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
-  std::cout << "bucketpage已满，分裂一次，进行递归插入。" << header_page->HashToDirectoryIndex(hash) << " "
-            << directory_page->HashToBucketIndex(hash) << std::endl;
+  std::cout << "Thread id:" << std::this_thread::get_id() << "bucketpage已满，分裂一次，进行递归插入。"
+            << " " << directory_page->HashToBucketIndex(hash) << std::endl;
   // 分裂完后新数据要插入
-  Insert(key, value, transaction);
-
-  return true;
+  return Insert(key, value, transaction);
 }
 
 template <typename K, typename V, typename KC>
@@ -225,42 +242,56 @@ void DiskExtendibleHashTable<K, V, KC>::UpdateDirectoryMapping(ExtendibleHTableD
   throw NotImplementedException("DiskExtendibleHashTable is not implemented");
 }
 
-/*****************************************************************************
- * REMOVE
- *****************************************************************************/
+template <typename K, typename V, typename KC>
+void DiskExtendibleHashTable<K, V, KC>::Shrink(ExtendibleHTableDirectoryPage *directory,
+                                               ExtendibleHTableBucketPage<K, V, KC> *bucket, uint32_t hash) {
+} /*****************************************************************************
+   * REMOVE
+   *****************************************************************************/
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transaction) -> bool {
   auto hash = DiskExtendibleHashTable<K, V, KC>::Hash(key);
-  auto header_page = bpm_->FetchPageRead(header_page_id_).template As<ExtendibleHTableHeaderPage>();
+  std::cout << "Thread id:" << std::this_thread::get_id() << " hash value:" << hash << "!!!!!!!!!!remove!!!!!!!!!!!"
+            << std::endl;
+  auto header_pageguard = bpm_->FetchPageRead(header_page_id_);
+  auto header_page = header_pageguard.template As<ExtendibleHTableHeaderPage>();
   auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
+  header_pageguard.Drop();
   if (directory_pgid == INVALID_PAGE_ID) {
-    std::cout << "invalid directory_page_id" << std::endl;
+    std::cout << "Thread id:" << std::this_thread::get_id() << "invalid directory_page_id" << std::endl;
     return false;
   }
   auto directory_basic_page = bpm_->FetchPageBasic(directory_pgid);
-  {
-    auto directory_read_page = directory_basic_page.UpgradeRead().template As<ExtendibleHTableDirectoryPage>();
-    auto bucket_pgid = directory_read_page->GetBucketPageId(directory_read_page->HashToBucketIndex(hash));
-    if (bucket_pgid == INVALID_PAGE_ID) {
-      std::cout << "invalid bucket_page_id" << std::endl;
-      return false;
-    }
-    auto bucket_page = bpm_->FetchPageWrite(bucket_pgid).template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
-    V value;
-    if (!bucket_page->Lookup(key, value, cmp_)) {
-      std::cout << "not such key in bucket page" << std::endl;
-      return false;
-    }
-    if (!bucket_page->Remove(key, cmp_)) {
-      std::cout << "bucket remove error" << std::endl;
-      return false;
-    }
+
+  auto directory_read_pageguard = directory_basic_page.UpgradeRead();
+  auto directory_read_page = directory_read_pageguard.template As<ExtendibleHTableDirectoryPage>();
+  auto bucket_pgid = directory_read_page->GetBucketPageId(directory_read_page->HashToBucketIndex(hash));
+  if (bucket_pgid == INVALID_PAGE_ID) {
+    std::cout << "invalid bucket_page_id" << std::endl;
+    return false;
   }
-  directory_basic_page = bpm_->FetchPageBasic(directory_pgid);
-  auto directory_write_page = directory_basic_page.UpgradeWrite().template AsMut<ExtendibleHTableDirectoryPage>();
-  while (directory_write_page->CanShrink()) {
-    directory_write_page->DecrGlobalDepth();
+  auto bucket_pageguard = bpm_->FetchPageWrite(bucket_pgid);
+  auto bucket_page = bucket_pageguard.template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
+  V value;
+  if (!bucket_page->Lookup(key, value, cmp_)) {
+    std::cout << "Thread id:" << std::this_thread::get_id() << "not such key in bucket page" << std::endl;
+    return false;
   }
+  if (!bucket_page->Remove(key, cmp_)) {
+    std::cout << "Thread id:" << std::this_thread::get_id() << "bucket remove error" << std::endl;
+    return false;
+  }
+  bucket_pageguard.Drop();
+  directory_read_pageguard.Drop();
+  // directory_basic_page = bpm_->FetchPageBasic(directory_pgid);
+  // auto directory_write_pageguard = directory_basic_page.UpgradeWrite();
+  // auto directory_write_page = directory_write_pageguard.template AsMut<ExtendibleHTableDirectoryPage>();
+  // while (directory_write_page->CanShrink()) {
+  //   directory_write_page->DecrGlobalDepth();
+  // }
+
+  std::cout << "Thread id:" << std::this_thread::get_id() << "bucket remove successed" << std::endl;
+
   return true;
 }
 

@@ -41,7 +41,7 @@ void ExtendibleHTableDirectoryPage::SetBucketPageId(uint32_t bucket_idx, page_id
 }
 
 auto ExtendibleHTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) const -> uint32_t {
-  return bucket_idx ^ (1U << (GetGlobalDepth() - 1)) ;
+  return bucket_idx ^ (1U << (GetGlobalDepth() - 1));
 }
 
 auto ExtendibleHTableDirectoryPage::GetGlobalDepthMask() const -> uint32_t { return (1U << GetGlobalDepth()) - 1; }
@@ -59,7 +59,8 @@ void ExtendibleHTableDirectoryPage::IncrGlobalDepth() {
     if (local_depths_[idx] == global_depth_) {
       local_depths_[tmpidx] = global_depth_;
       continue;
-    } else if (bucket_page_ids_[idx] == INVALID_PAGE_ID) {
+    }
+    if (bucket_page_ids_[idx] == INVALID_PAGE_ID) {
       local_depths_[idx] = global_depth_;
       local_depths_[tmpidx] = global_depth_;
     } else {

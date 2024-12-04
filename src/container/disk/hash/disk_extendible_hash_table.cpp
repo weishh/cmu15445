@@ -45,6 +45,8 @@ DiskExtendibleHashTable<K, V, KC>::DiskExtendibleHashTable(const std::string &na
   // throw NotImplementedException("DiskExtendibleHashTable is not implemented");
   auto header_page = bpm_->NewPageGuarded(&header_page_id_).AsMut<ExtendibleHTableHeaderPage>();
   header_page->Init(header_max_depth_);
+  std::cout << "header_max_depth: " << header_max_depth_ << "directory_max_depth: " << directory_max_depth_
+            << "bucket_max_depth " << bucket_max_size_ << std::endl;
 }
 
 /*****************************************************************************
@@ -241,7 +243,16 @@ template <typename K, typename V, typename KC>
 void DiskExtendibleHashTable<K, V, KC>::UpdateDirectoryMapping(ExtendibleHTableDirectoryPage *directory,
                                                                uint32_t new_bucket_idx, page_id_t new_bucket_page_id,
                                                                uint32_t new_local_depth, uint32_t local_depth_mask) {
-  throw NotImplementedException("DiskExtendibleHashTable is not implemented");
+  for (uint32_t i = 0; i < (1U << directory->GetGlobalDepth()); ++i) {
+    if (directory->GetBucketPageId(i) == directory->GetBucketPageId(new_bucket_idx)) {
+      if ((i & local_depth_mask) != 0U) {
+        directory->SetBucketPageId(i, new_bucket_page_id);
+        directory->SetLocalDepth(i, new_local_depth);
+      } else {
+        directory->SetLocalDepth(i, new_local_depth);
+      }
+    }
+  }
 }
 
 template <typename K, typename V, typename KC>
@@ -260,7 +271,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
   auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
   header_pageguard.Drop();
   if (directory_pgid == INVALID_PAGE_ID) {
-    std::cout << "Thread id:" << std::this_thread::get_id() << "invalid directory_page_id" << std::endl;
+    // std::cout << "Thread id:" << std::this_thread::get_id() << "invalid directory_page_id" << std::endl;
     return false;
   }
   auto directory_basic_page = bpm_->FetchPageBasic(directory_pgid);
@@ -276,15 +287,15 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
   auto bucket_page = bucket_pageguard.template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
   V value;
   if (!bucket_page->Lookup(key, value, cmp_)) {
-    std::cout << "Thread id:" << std::this_thread::get_id() << "not such key in bucket page" << std::endl;
+    // std::cout << "Thread id:" << std::this_thread::get_id() << "not such key in bucket page" << std::endl;
     return false;
   }
   if (!bucket_page->Remove(key, cmp_)) {
-    std::cout << "Thread id:" << std::this_thread::get_id() << "bucket remove error" << std::endl;
+    // std::cout << "Thread id:" << std::this_thread::get_id() << "bucket remove error" << std::endl;
     return false;
   }
-  bucket_pageguard.Drop();
-  directory_read_pageguard.Drop();
+  // =========================================merge过程======================================================
+
   // directory_basic_page = bpm_->FetchPageBasic(directory_pgid);
   // auto directory_write_pageguard = directory_basic_page.UpgradeWrite();
   // auto directory_write_page = directory_write_pageguard.template AsMut<ExtendibleHTableDirectoryPage>();
@@ -292,7 +303,50 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
   //   directory_write_page->DecrGlobalDepth();
   // }
 
-  std::cout << "Thread id:" << std::this_thread::get_id() << "bucket remove successed" << std::endl;
+  // std::cout << "Thread id:" << std::this_thread::get_id() << "bucket remove successed" << std::endl;
+  bucket_pageguard.Drop();
+  directory_read_pageguard.Drop();
+  auto directory_page_guard = bpm_->FetchPageWrite(directory_pgid);
+  auto directory_page = directory_page_guard.template AsMut<ExtendibleHTableDirectoryPage>();
+  auto check_page_id = bucket_pgid;
+  auto bucket_index = directory_page->HashToBucketIndex(hash);
+  ReadPageGuard check_guard = bpm_->FetchPageRead(check_page_id);
+  auto check_page = reinterpret_cast<const ExtendibleHTableBucketPage<K, V, KC> *>(check_guard.GetData());
+  uint32_t local_depth = directory_page->GetLocalDepth(bucket_index);
+  uint32_t global_depth = directory_page->GetGlobalDepth();
+
+  while (local_depth > 0) {
+    // 获取要合并的桶的索引
+    uint32_t convert_mask = 1 << (local_depth - 1);
+    uint32_t merge_bucket_index = bucket_index ^ convert_mask;
+    uint32_t merge_local_depth = directory_page->GetLocalDepth(merge_bucket_index);
+    page_id_t merge_page_id = directory_page->GetBucketPageId(merge_bucket_index);
+    ReadPageGuard merge_guard = bpm_->FetchPageRead(merge_page_id);
+    auto merge_page = reinterpret_cast<const ExtendibleHTableBucketPage<K, V, KC> *>(merge_guard.GetData());
+    if (merge_local_depth != local_depth || (!check_page->IsEmpty() && !merge_page->IsEmpty())) {
+      break;
+    }
+    if (check_page->IsEmpty()) {
+      bpm_->DeletePage(check_page_id);
+      check_page = merge_page;
+      check_page_id = merge_page_id;
+      check_guard = std::move(merge_guard);
+    } else {
+      bpm_->DeletePage(merge_page_id);
+    }
+    directory_page->DecrLocalDepth(bucket_index);
+    local_depth = directory_page->GetLocalDepth(bucket_index);
+    uint32_t local_depth_mask = directory_page->GetLocalDepthMask(bucket_index);
+    uint32_t mask_idx = bucket_index & local_depth_mask;
+    uint32_t update_count = 1 << (global_depth - local_depth);
+    for (uint32_t i = 0; i < update_count; ++i) {
+      uint32_t tmp_idx = (i << local_depth) + mask_idx;
+      UpdateDirectoryMapping(directory_page, tmp_idx, check_page_id, local_depth, 0);
+    }
+  }
+  while (directory_page->CanShrink()) {
+    directory_page->DecrGlobalDepth();
+  }
 
   return true;
 }

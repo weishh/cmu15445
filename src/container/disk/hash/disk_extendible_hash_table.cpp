@@ -220,6 +220,8 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   std::cout << "Thread id:" << std::this_thread::get_id() << "bucketpage已满，分裂一次，进行递归插入。"
             << " " << directory_page->HashToBucketIndex(hash) << std::endl;
   // 分裂完后新数据要插入
+  directory_pageguard.Drop();
+  bucket_pageguard.Drop();
   return Insert(key, value, transaction);
 }
 

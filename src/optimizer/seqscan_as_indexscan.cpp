@@ -27,6 +27,7 @@ auto Optimizer::OptimizeSeqScanAsIndexScan(const bustub::AbstractPlanNodeRef &pl
       if (!table_idx.empty() && !logic_expr) {
         auto equal_expr = std::dynamic_pointer_cast<ComparisonExpression>(predicate);
         if (equal_expr) {
+          // 只有比较表达式中的=判断才可以进行index优化
           auto com_type = equal_expr->comp_type_;
           if (com_type == ComparisonType::Equal) {
             auto table_oid = seq_plan.table_oid_;
@@ -37,6 +38,7 @@ auto Optimizer::OptimizeSeqScanAsIndexScan(const bustub::AbstractPlanNodeRef &pl
               const auto &columns = index->index_->GetKeyAttrs();
               std::vector<uint32_t> column_ids;
               column_ids.push_back(column_index);
+              // 判断查询条件是否匹配
               if (columns == column_ids) {
                 auto pred_key = std::dynamic_pointer_cast<ConstantValueExpression>(equal_expr->GetChildAt(1));
                 ConstantValueExpression *raw_pred_key = pred_key ? pred_key.get() : nullptr;

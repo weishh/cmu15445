@@ -20,7 +20,25 @@
 #include "execution/plans/hash_join_plan.h"
 #include "storage/table/tuple.h"
 
+namespace std{
+
+  
+
+
+};
+
 namespace bustub {
+struct HashJoinKey {
+  std::vector<Value> hash_keys_;
+  auto operator==(const HashJoinKey &other) const -> bool {
+    for (uint32_t i = 0; i < other.hash_keys_.size(); ++i) {
+      if (hash_keys_[i].CompareEquals(other.hash_keys_[i]) != CmpBool::CmpTrue) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
 
 /**
  * HashJoinExecutor executes a nested-loop JOIN on two tables.
@@ -54,6 +72,8 @@ class HashJoinExecutor : public AbstractExecutor {
  private:
   /** The HashJoin plan node to be executed. */
   const HashJoinPlanNode *plan_;
+  std::unique_ptr<AbstractExecutor> left_executor_;
+  std::unique_ptr<AbstractExecutor> right_executor_;
 };
 
 }  // namespace bustub

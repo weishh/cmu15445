@@ -11,27 +11,13 @@ insert into t1 values (1, 50, 645), (2, 40, 721), (4, 20, 445), (5, 10, 445), (3
 ----
 5
 
-# Build index
-statement ok
-create index t1v1 on t1(v1);
-
-statement ok
-create index t1v2 on t1(v2);
-
 # Delete all
 query
 delete from t1;
 ----
 5
 
-# Insert more elements
 query
-insert into t1 values (6, 0, 445), (7, -10, 645), (8, 10, 445);
+select count(*) from t1;
 ----
-3
-
-
-query +ensure:index_scan
-select * from t1 where v1 = 6;
-----
-6 0 445
+0

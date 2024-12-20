@@ -32,6 +32,8 @@ namespace bustub {
  * A simplified hash table that has all the necessary functionality for aggregations.
  */
 class SimpleAggregationHashTable {
+  friend class AggregationExecutor;
+
  public:
   /**
    * Construct a new SimpleAggregationHashTable instance.

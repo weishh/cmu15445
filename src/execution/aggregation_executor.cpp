@@ -22,9 +22,7 @@ AggregationExecutor::AggregationExecutor(ExecutorContext *exec_ctx, const Aggreg
 
 void AggregationExecutor::Init() {
   child_executor_->Init();
-  auto agg_exprs = plan_->GetAggregates();
-  auto agg_types = plan_->GetAggregateTypes();
-  aht_ = std::make_unique<SimpleAggregationHashTable>(agg_exprs, agg_types);
+  aht_ = std::make_unique<SimpleAggregationHashTable>(plan_->GetAggregates(), plan_->GetAggregateTypes());
   Tuple child_tp{};
   RID rid{};
   while (child_executor_->Next(&child_tp, &rid)) {
@@ -34,15 +32,17 @@ void AggregationExecutor::Init() {
   }
   aht_iterator_ = std::make_unique<SimpleAggregationHashTable::Iterator>(aht_->Begin());
   flag = false;
+  std::cout << "After AHT creation - types: " << aht_->agg_types_.size() << std::endl;
 }
 // 每次返回聚合好的一条tuple
 auto AggregationExecutor::Next(Tuple *tuple, RID *rid) -> bool {
-//  先判断分组空不空
+  //  先判断分组空不空
+  std::cout << "After AHT creation - types: " << aht_->agg_types_.size() << std::endl;
   if (aht_->Begin() != aht_->End()) {
     if (*aht_iterator_ == aht_->End()) {
       return false;
     }
-    // 获取聚合键和聚合值
+    // 获取聚合键和聚合值，已经是计算好的
     auto agg_key = aht_iterator_->Key();
     auto agg_val = aht_iterator_->Val();
     // 根据聚合键和聚合值生成查询结果元组
@@ -57,11 +57,10 @@ auto AggregationExecutor::Next(Tuple *tuple, RID *rid) -> bool {
       values.emplace_back(agg_value);
     }
     *tuple = {values, &GetOutputSchema()};
-    // 迭代到下一个聚合键和聚合值
     ++*aht_iterator_;
-    // 表示成功返回了一个聚合结果
     return true;
   }
+  // 设置flag的原因是对于空表只返回一次结果，再一次的next直接返回false
   if (flag) {
     return false;
   }
@@ -71,7 +70,7 @@ auto AggregationExecutor::Next(Tuple *tuple, RID *rid) -> bool {
     std::vector<Value> values{};
     Tuple tuple_buffer{};
     // 检查当前表是否为空，如果为空生成默认的聚合值，对于 count(*) 来说是 0，对于其他聚合函数来说是 integer_null(
-    // 默认聚合值要求由GenerateInitialAggregateValue实现
+    // 默认聚合值要求由GenerateInitialAggregateValue实现, 有bug，先delete全部数据后再select count(*) 会有bug
     for (auto &agg_value : aht_->GenerateInitialAggregateValue().aggregates_) {
       values.emplace_back(agg_value);
     }

@@ -15,17 +15,12 @@
 #include <memory>
 #include <utility>
 
+#include "aggregation_executor.h"
+#include "common/hash_util.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/hash_join_plan.h"
 #include "storage/table/tuple.h"
-
-namespace std{
-
-  
-
-
-};
 
 namespace bustub {
 struct HashJoinKey {
@@ -38,6 +33,49 @@ struct HashJoinKey {
     }
     return true;
   }
+};
+};  // namespace bustub
+namespace std {
+
+template <>
+struct hash<bustub::HashJoinKey> {
+  auto operator()(const bustub::HashJoinKey &join_key) const -> std::size_t {
+    size_t curr_hash = 0;
+    for (const auto &key : join_key.hash_keys_) {
+      if (!key.IsNull()) {
+        curr_hash = bustub::HashUtil::CombineHashes(curr_hash, bustub::HashUtil::HashValue(&key));
+      }
+    }
+    return curr_hash;
+  }
+};
+};  // namespace std
+
+namespace bustub {
+
+class SimpleJoinHashTable {
+ public:
+  void InsertKey(const HashJoinKey &join_key, const Tuple &tuple) {
+    if (ht_.count(join_key) == 0) {
+      std::vector<Tuple> tuple_vector;
+      tuple_vector.push_back(tuple);
+      ht_.insert({join_key, tuple_vector});
+    } else {
+      ht_.at(join_key).push_back(tuple);
+    }
+  }
+
+  auto GetValue(const HashJoinKey &join_key) -> std::vector<Tuple> * {
+    if (ht_.find(join_key) == ht_.end()) {
+      return nullptr;
+    }
+    return &(ht_.find(join_key)->second);
+  }
+
+  void Clear() { ht_.clear(); }
+
+ private:
+  std::unordered_map<HashJoinKey, std::vector<Tuple>> ht_{};
 };
 
 /**
@@ -71,9 +109,32 @@ class HashJoinExecutor : public AbstractExecutor {
 
  private:
   /** The HashJoin plan node to be executed. */
+  auto GetLeftJoinKey(const Tuple *tuple) -> HashJoinKey {
+    std::vector<Value> values;
+    for (const auto &expr : plan_->LeftJoinKeyExpressions()) {
+      values.emplace_back(expr->Evaluate(tuple, left_executor_->GetOutputSchema()));
+    }
+    return {values};
+  }
+
+  auto GetRightJoinKey(const Tuple *tuple) -> HashJoinKey {
+    std::vector<Value> values;
+    for (const auto &expr : plan_->RightJoinKeyExpressions()) {
+      values.emplace_back(expr->Evaluate(tuple, right_executor_->GetOutputSchema()));
+    }
+    return {values};
+  }
+
   const HashJoinPlanNode *plan_;
   std::unique_ptr<AbstractExecutor> left_executor_;
   std::unique_ptr<AbstractExecutor> right_executor_;
+  std::unique_ptr<SimpleJoinHashTable> simple_ht_;
+  std::vector<Tuple>::iterator iter_;
+  Tuple left_tuple_ {};
+  RID left_rid_ {};
+  std::vector<Tuple> * right_tuple_{nullptr};
+  bool has_done_; 
+  bool left_flag_;
 };
 
 }  // namespace bustub

@@ -16,7 +16,6 @@
 #include <utility>
 
 #include "aggregation_executor.h"
-#include "common/hash_util.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/hash_join_plan.h"
@@ -111,7 +110,7 @@ class HashJoinExecutor : public AbstractExecutor {
   /** The HashJoin plan node to be executed. */
   auto GetLeftJoinKey(const Tuple *tuple) -> HashJoinKey {
     std::vector<Value> values;
-    for (const auto &expr : plan_->LeftJoinKeyExpressions()) {
+    for (auto &expr : plan_->LeftJoinKeyExpressions()) {
       values.emplace_back(expr->Evaluate(tuple, left_executor_->GetOutputSchema()));
     }
     return {values};
@@ -119,7 +118,7 @@ class HashJoinExecutor : public AbstractExecutor {
 
   auto GetRightJoinKey(const Tuple *tuple) -> HashJoinKey {
     std::vector<Value> values;
-    for (const auto &expr : plan_->RightJoinKeyExpressions()) {
+    for (auto &expr : plan_->RightJoinKeyExpressions()) {
       values.emplace_back(expr->Evaluate(tuple, right_executor_->GetOutputSchema()));
     }
     return {values};

@@ -17,7 +17,7 @@ namespace bustub {
 HashJoinExecutor::HashJoinExecutor(ExecutorContext *exec_ctx, const HashJoinPlanNode *plan,
                                    std::unique_ptr<AbstractExecutor> &&left_child,
                                    std::unique_ptr<AbstractExecutor> &&right_child)
-    : AbstractExecutor(exec_ctx), left_executor_(std::move(left_child)), right_executor_(std::move(right_child)) {
+    : AbstractExecutor(exec_ctx),plan_(plan) ,left_executor_(std::move(left_child)), right_executor_(std::move(right_child)) {
   if (!(plan->GetJoinType() == JoinType::LEFT || plan->GetJoinType() == JoinType::INNER)) {
     // Note for 2023 Fall: You ONLY need to implement left join and inner join.
     throw bustub::NotImplementedException(fmt::format("join type {} not supported", plan->GetJoinType()));
@@ -33,7 +33,8 @@ void HashJoinExecutor::Init() {
   Tuple right_tuple{};
   RID right_rid{};
   while (right_executor_->Next(&right_tuple, &right_rid)) {
-    simple_ht_->InsertKey(GetRightJoinKey(&right_tuple), right_tuple);
+    auto right_hash_key = GetRightJoinKey(&right_tuple);
+    simple_ht_->InsertKey(right_hash_key, right_tuple);
   }
   auto left_hash_key = GetLeftJoinKey(&left_tuple_);
   right_tuple_ = simple_ht_->GetValue(left_hash_key);
@@ -65,7 +66,6 @@ auto HashJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
     // 左链接且没有匹配
     if (plan_->GetJoinType() == JoinType::LEFT && !has_done_) {
       std::vector<Value> values;
-      auto rtp = *iter_;
       for (uint32_t i = 0; i < this->left_executor_->GetOutputSchema().GetColumnCount(); i++) {
         values.emplace_back(left_tuple_.GetValue(&this->left_executor_->GetOutputSchema(), i));
       }

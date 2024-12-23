@@ -4,10 +4,27 @@ namespace bustub {
 
 SortExecutor::SortExecutor(ExecutorContext *exec_ctx, const SortPlanNode *plan,
                            std::unique_ptr<AbstractExecutor> &&child_executor)
-    : AbstractExecutor(exec_ctx) {}
+    : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(std::move(child_executor)) {}
 
-void SortExecutor::Init() { throw NotImplementedException("SortExecutor is not implemented"); }
+void SortExecutor::Init() {
+  child_executor_->Init();
+  Tuple tuple{};
+  RID rid{};
+  while (child_executor_->Next(&tuple, &rid)) {
+    tuples.emplace_back(tuple);
+  }
+  auto order_by = plan_->GetOrderBy();
+  std::sort(tuples.begin(), tuples.end(), Comparator(&GetOutputSchema(), order_by));
+  iter_ = tuples.begin();
 
-auto SortExecutor::Next(Tuple *tuple, RID *rid) -> bool { return false; }
+}
 
+auto SortExecutor::Next(Tuple *tuple, RID *rid) -> bool {
+    if(iter_ != tuples.end()){
+        *tuple = *iter_;
+        ++iter_;
+        return true; 
+    }
+    return false;
+}
 }  // namespace bustub

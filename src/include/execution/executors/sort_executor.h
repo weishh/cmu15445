@@ -24,9 +24,8 @@
 namespace bustub {
 
 class Comparator {
-
-public:
-  Comparator() {}
+ public:
+  Comparator() = default;
 
   Comparator(const Schema *schema, std::vector<std::pair<OrderByType, AbstractExpressionRef>> order_bys)
       : schema_(schema), order_bys_(std::move(order_bys)) {}
@@ -83,8 +82,7 @@ class SortExecutor : public AbstractExecutor {
   /** The sort plan node to be executed */
   const SortPlanNode *plan_;
   std::unique_ptr<AbstractExecutor> child_executor_;
-  std::vector<Tuple> tuples {};
+  std::vector<Tuple> tuples_{};
   std::vector<Tuple>::iterator iter_;
-
 };
 }  // namespace bustub

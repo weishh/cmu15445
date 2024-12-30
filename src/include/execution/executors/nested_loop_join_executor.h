@@ -60,7 +60,7 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
   bool is_match_{false};
   bool left_is_exist_{false};
   Tuple left_tuple_{};
-  RID left_RID_{};
+  RID left_rid_{};
 };
 
 }  // namespace bustub

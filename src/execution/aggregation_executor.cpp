@@ -31,7 +31,7 @@ void AggregationExecutor::Init() {
     aht_->InsertCombine(key, value);
   }
   aht_iterator_ = std::make_unique<SimpleAggregationHashTable::Iterator>(aht_->Begin());
-  flag = false;
+  flag_ = false;
   std::cout << "After AHT creation - types: " << aht_->agg_types_.size() << std::endl;
 }
 // 每次返回聚合好的一条tuple
@@ -61,10 +61,10 @@ auto AggregationExecutor::Next(Tuple *tuple, RID *rid) -> bool {
     return true;
   }
   // 设置flag的原因是对于空表只返回一次结果，再一次的next直接返回false
-  if (flag) {
+  if (flag_) {
     return false;
   }
-  flag = true;
+  flag_ = true;
   // 没有groupby语句则生成一个初始的聚合值元组并返回
   if (plan_->GetGroupBys().empty()) {
     std::vector<Value> values{};

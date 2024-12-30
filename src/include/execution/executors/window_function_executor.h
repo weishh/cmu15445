@@ -202,6 +202,7 @@ class WindowFunctionExecutor : public AbstractExecutor {
  private:
   auto MakeWinKey(const Tuple *tuple, std::vector<AbstractExpressionRef> &partitionby) -> AggregateKey {
     std::vector<Value> keys;
+    keys.reserve(partitionby.size());
     for (const auto &expr : partitionby) {
       keys.emplace_back(expr->Evaluate(tuple, child_executor_->GetOutputSchema()));
     }

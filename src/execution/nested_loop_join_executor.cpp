@@ -33,19 +33,19 @@ NestedLoopJoinExecutor::NestedLoopJoinExecutor(ExecutorContext *exec_ctx, const 
 void NestedLoopJoinExecutor::Init() {
   left_executor_->Init();
   right_executor_->Init();
-  left_is_exist_ = left_executor_->Next(&left_tuple_, &left_RID_);
+  left_is_exist_ = left_executor_->Next(&left_tuple_, &left_rid_);
 }
 
 auto NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   Tuple right_tuple{};
-  RID right_RID{};
+  RID right_rid{};
   auto l_scheme = left_executor_->GetOutputSchema();
   auto r_scheme = right_executor_->GetOutputSchema();
   auto predicate = plan_->predicate_;
   if (plan_->GetJoinType() == JoinType::LEFT) {
     while (left_is_exist_) {
       // 匹配成功
-      while (right_executor_->Next(&right_tuple, &right_RID)) {
+      while (right_executor_->Next(&right_tuple, &right_rid)) {
         auto match_res = predicate->EvaluateJoin(&left_tuple_, left_executor_->GetOutputSchema(), &right_tuple,
                                                  right_executor_->GetOutputSchema());
         if (match_res.GetAs<bool>()) {
@@ -74,7 +74,7 @@ auto NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
         is_match_ = true;
         return true;
       }
-      left_is_exist_ = left_executor_->Next(&left_tuple_, &left_RID_);
+      left_is_exist_ = left_executor_->Next(&left_tuple_, &left_rid_);
       right_executor_->Init();
       is_match_ = false;
     }
@@ -83,7 +83,7 @@ auto NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
 
   // inner join,要用while判断，自动滤除那些不匹配的。
   while (left_is_exist_) {
-    while (right_executor_->Next(&right_tuple, &right_RID)) {
+    while (right_executor_->Next(&right_tuple, &right_rid)) {
       auto match_res = predicate->EvaluateJoin(&left_tuple_, left_executor_->GetOutputSchema(), &right_tuple,
                                                right_executor_->GetOutputSchema());
       if (match_res.GetAs<bool>()) {
@@ -99,7 +99,7 @@ auto NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
         return true;
       }
     }
-    left_is_exist_ = left_executor_->Next(&left_tuple_, &left_RID_);
+    left_is_exist_ = left_executor_->Next(&left_tuple_, &left_rid_);
     right_executor_->Init();
   }
   return false;

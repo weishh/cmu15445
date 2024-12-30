@@ -82,7 +82,7 @@ void WindowFunctionExecutor::Init() {
 }
 
 auto WindowFunctionExecutor::Next(Tuple *tuple, RID *rid) -> bool {
-      if (tuples_.empty()) {
+  if (tuples_.empty()) {
     return false;
   }
   // 获取元组

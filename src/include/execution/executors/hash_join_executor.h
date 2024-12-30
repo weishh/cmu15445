@@ -129,10 +129,10 @@ class HashJoinExecutor : public AbstractExecutor {
   std::unique_ptr<AbstractExecutor> right_executor_;
   std::unique_ptr<SimpleJoinHashTable> simple_ht_;
   std::vector<Tuple>::iterator iter_;
-  Tuple left_tuple_ {};
-  RID left_rid_ {};
-  std::vector<Tuple> * right_tuple_{nullptr};
-  bool has_done_; 
+  Tuple left_tuple_{};
+  RID left_rid_{};
+  std::vector<Tuple> *right_tuple_{nullptr};
+  bool has_done_;
   bool left_flag_;
 };
 

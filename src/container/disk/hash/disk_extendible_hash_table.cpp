@@ -45,8 +45,8 @@ DiskExtendibleHashTable<K, V, KC>::DiskExtendibleHashTable(const std::string &na
   // throw NotImplementedException("DiskExtendibleHashTable is not implemented");
   auto header_page = bpm_->NewPageGuarded(&header_page_id_).AsMut<ExtendibleHTableHeaderPage>();
   header_page->Init(header_max_depth_);
-  std::cout << "header_max_depth: " << header_max_depth_ << "directory_max_depth: " << directory_max_depth_
-            << "bucket_max_depth " << bucket_max_size_ << std::endl;
+  // std::cout << "header_max_depth: " << header_max_depth_ << "directory_max_depth: " << directory_max_depth_
+  //           << "bucket_max_depth " << bucket_max_size_ << std::endl;
 }
 
 /*****************************************************************************
@@ -87,8 +87,8 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   auto header_page_guard = bpm_->FetchPageWrite(header_page_id_);
   auto header_page = header_page_guard.template AsMut<ExtendibleHTableHeaderPage>();
   auto hash = DiskExtendibleHashTable<K, V, KC>::Hash(key);
-  std::cout << "Thread id:" << std::this_thread::get_id() << " hash value:" << hash << "!!!!!!!!!!inserted!!!!!!!!!!!"
-            << std::endl;
+  // std::cout << "Thread id:" << std::this_thread::get_id() << " hash value:" << hash << "!!!!!!!!!!inserted!!!!!!!!!!!"
+  //           << std::endl;
   auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
 
   // 目录页没有，进行创建===========================================================================
@@ -109,11 +109,11 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     auto bucket_page = bk_pg.UpgradeWrite().template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
     bucket_page->Init(bucket_max_size_);
     if (bucket_page->Insert(key, value, cmp_)) {
-      std::cout << "Thread id:" << std::this_thread::get_id() << "深度信息： " << directory_page->GetGlobalDepth()
-                << " " << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
-      std::cout << "Thread id:" << std::this_thread::get_id() << "插入成功，目录页和bucket页都不存在。"
-                << header_page->HashToDirectoryIndex(hash) << " " << directory_page->HashToBucketIndex(hash)
-                << std::endl;
+      // std::cout << "Thread id:" << std::this_thread::get_id() << "深度信息： " << directory_page->GetGlobalDepth()
+      //           << " " << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+      // std::cout << "Thread id:" << std::this_thread::get_id() << "插入成功，目录页和bucket页都不存在。"
+      //           << header_page->HashToDirectoryIndex(hash) << " " << directory_page->HashToBucketIndex(hash)
+      //           << std::endl;
       return true;
     }
     return false;
@@ -122,7 +122,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   // 目录页有但是bucket页没有
   auto directory_pageguard = bpm_->FetchPageWrite(directory_pgid);
   auto directory_page = directory_pageguard.template AsMut<ExtendibleHTableDirectoryPage>();
-  directory_page->PrintDirectory();
+  // directory_page->PrintDirectory();
   auto bucket_pgid = directory_page->GetBucketPageId(directory_page->HashToBucketIndex(hash));
   if (bucket_pgid == INVALID_PAGE_ID) {
     auto bk_pg = bpm_->NewPageGuarded(&bucket_pgid);
@@ -134,11 +134,11 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
     auto bucket_page = bk_pg.UpgradeWrite().template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
     bucket_page->Init(bucket_max_size_);
     if (bucket_page->Insert(key, value, cmp_)) {
-      std::cout << "Thread id:" << std::this_thread::get_id() << "深度信息： " << directory_page->GetGlobalDepth()
-                << " " << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
-      std::cout << "Thread id:" << std::this_thread::get_id() << "插入成功，目录页存在，但是bucket页都不存在。"
-                << header_page->HashToDirectoryIndex(hash) << " " << directory_page->HashToBucketIndex(hash)
-                << std::endl;
+      // std::cout << "Thread id:" << std::this_thread::get_id() << "深度信息： " << directory_page->GetGlobalDepth()
+      //           << " " << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+      // std::cout << "Thread id:" << std::this_thread::get_id() << "插入成功，目录页存在，但是bucket页都不存在。"
+      //           << header_page->HashToDirectoryIndex(hash) << " " << directory_page->HashToBucketIndex(hash)
+      //           << std::endl;
       return true;
     }
     return false;
@@ -150,7 +150,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   auto bucket_page = bucket_pageguard.template AsMut<ExtendibleHTableBucketPage<K, V, KC>>();
   V tmpvalue;
   if (bucket_page->Lookup(key, tmpvalue, cmp_)) {
-    std::cout << "key already exist" << std::endl;
+    // std::cout << "key already exist" << std::endl;
     return false;
   }
 
@@ -161,9 +161,9 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
       // std::cout << "Thread id:" << std::this_thread::get_id() << "directory pgid " << directory_pgid << std::endl;
       // std::cout << "Thread id:" << std::this_thread::get_id() << " 深度信息： " << directory_page->GetGlobalDepth()
       //           << " " << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
-      std::cout << "Thread id:" << std::this_thread::get_id() << "插入成功，都存在，不进行桶分裂。"
-                << header_page->HashToDirectoryIndex(hash) << " " << directory_page->HashToBucketIndex(hash)
-                << std::endl;
+      // std::cout << "Thread id:" << std::this_thread::get_id() << "插入成功，都存在，不进行桶分裂。"
+      //           << header_page->HashToDirectoryIndex(hash) << " " << directory_page->HashToBucketIndex(hash)
+      //           << std::endl;
       return true;
     }
     return false;
@@ -176,15 +176,15 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   auto local_depth = directory_page->GetLocalDepth(bucket_idx);
   if (local_depth == directory_page->GetGlobalDepth() &&
       directory_page->GetGlobalDepth() == directory_page->GetMaxDepth()) {
-    std::cout << "Thread id:" << std::this_thread::get_id() << " 深度信息： " << directory_page->GetGlobalDepth() << " "
-              << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
-    std::cout << "插入失败，已满，无法插入新元素。" << directory_page->HashToBucketIndex(hash) << std::endl;
+    // std::cout << "Thread id:" << std::this_thread::get_id() << " 深度信息： " << directory_page->GetGlobalDepth() << " "
+    //           << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+    // std::cout << "插入失败，已满，无法插入新元素。" << directory_page->HashToBucketIndex(hash) << std::endl;
     return false;
   }
   page_id_t new_bck_pgid = INVALID_PAGE_ID;
   BasicPageGuard new_bucket_page = bpm_->NewPageGuarded(&new_bck_pgid);
   if (new_bck_pgid == INVALID_PAGE_ID) {
-    std::cout << "Thread id:" << std::this_thread::get_id() << "无法分配bucket page页面" << std::endl;
+    // std::cout << "Thread id:" << std::this_thread::get_id() << "无法分配bucket page页面" << std::endl;
     return false;
   };
   if (local_depth == directory_page->GetGlobalDepth()) {
@@ -217,10 +217,10 @@ auto DiskExtendibleHashTable<K, V, KC>::Insert(const K &key, const V &value, Tra
   for (auto key : remove_key) {
     bucket_page->Remove(key, cmp_);
   }
-  std::cout << "Thread id:" << std::this_thread::get_id() << " 深度信息： " << directory_page->GetGlobalDepth() << " "
-            << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
-  std::cout << "Thread id:" << std::this_thread::get_id() << "bucketpage已满，分裂一次，进行递归插入。"
-            << " " << directory_page->HashToBucketIndex(hash) << std::endl;
+  // std::cout << "Thread id:" << std::this_thread::get_id() << " 深度信息： " << directory_page->GetGlobalDepth() << " "
+  //           << directory_page->GetLocalDepth(directory_page->HashToBucketIndex(hash)) << std::endl;
+  // std::cout << "Thread id:" << std::this_thread::get_id() << "bucketpage已满，分裂一次，进行递归插入。"
+  //           << " " << directory_page->HashToBucketIndex(hash) << std::endl;
   // 分裂完后新数据要插入
   directory_pageguard.Drop();
   bucket_pageguard.Drop();
@@ -264,8 +264,8 @@ void DiskExtendibleHashTable<K, V, KC>::Shrink(ExtendibleHTableDirectoryPage *di
 template <typename K, typename V, typename KC>
 auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transaction) -> bool {
   auto hash = DiskExtendibleHashTable<K, V, KC>::Hash(key);
-  std::cout << "Thread id:" << std::this_thread::get_id() << " hash value:" << hash << "!!!!!!!!!!remove!!!!!!!!!!!"
-            << std::endl;
+  // std::cout << "Thread id:" << std::this_thread::get_id() << " hash value:" << hash << "!!!!!!!!!!remove!!!!!!!!!!!"
+  //           << std::endl;
   auto header_pageguard = bpm_->FetchPageRead(header_page_id_);
   auto header_page = header_pageguard.template As<ExtendibleHTableHeaderPage>();
   auto directory_pgid = header_page->GetDirectoryPageId(header_page->HashToDirectoryIndex(hash));
@@ -280,7 +280,7 @@ auto DiskExtendibleHashTable<K, V, KC>::Remove(const K &key, Transaction *transa
   auto directory_read_page = directory_read_pageguard.template As<ExtendibleHTableDirectoryPage>();
   auto bucket_pgid = directory_read_page->GetBucketPageId(directory_read_page->HashToBucketIndex(hash));
   if (bucket_pgid == INVALID_PAGE_ID) {
-    std::cout << "invalid bucket_page_id" << std::endl;
+    // std::cout << "invalid bucket_page_id" << std::endl;
     return false;
   }
   auto bucket_pageguard = bpm_->FetchPageWrite(bucket_pgid);

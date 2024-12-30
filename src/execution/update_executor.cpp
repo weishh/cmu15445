@@ -66,7 +66,7 @@ auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
 
   std::vector<Value> result = {{TypeId::INTEGER, count}};
   *tuple = Tuple{result, &GetOutputSchema()};
-  return true; 
+  return true;
 }
 
 }  // namespace bustub

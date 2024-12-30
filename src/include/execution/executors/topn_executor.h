@@ -26,7 +26,7 @@ namespace bustub {
 
 class HeapComparator {
  public:
-  HeapComparator() {}
+  HeapComparator() = default;
 
   HeapComparator(const Schema *schema, std::vector<std::pair<OrderByType, AbstractExpressionRef>> order_bys)
       : schema_(schema), order_bys_(std::move(order_bys)) {}

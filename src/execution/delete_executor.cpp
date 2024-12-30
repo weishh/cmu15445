@@ -22,15 +22,15 @@ DeleteExecutor::DeleteExecutor(ExecutorContext *exec_ctx, const DeletePlanNode *
 
 void DeleteExecutor::Init() {
   child_executor_->Init();
-  has_deleted = false;
+  has_deleted_ = false;
 }
 
 // 索引也需要删除
 auto DeleteExecutor::Next(Tuple *tuple, RID *rid) -> bool {
-  if (has_deleted) {
+  if (has_deleted_) {
     return false;
   }
-  has_deleted = true;
+  has_deleted_ = true;
   int count = 0;
   table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->GetTableOid());
   auto indexes = exec_ctx_->GetCatalog()->GetTableIndexes(table_info_->name_);

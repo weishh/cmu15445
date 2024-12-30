@@ -11,20 +11,19 @@ void SortExecutor::Init() {
   Tuple tuple{};
   RID rid{};
   while (child_executor_->Next(&tuple, &rid)) {
-    tuples.emplace_back(tuple);
+    tuples_.emplace_back(tuple);
   }
   auto order_by = plan_->GetOrderBy();
-  std::sort(tuples.begin(), tuples.end(), Comparator(&GetOutputSchema(), order_by));
-  iter_ = tuples.begin();
-
+  std::sort(tuples_.begin(), tuples_.end(), Comparator(&GetOutputSchema(), order_by));
+  iter_ = tuples_.begin();
 }
 
 auto SortExecutor::Next(Tuple *tuple, RID *rid) -> bool {
-    if(iter_ != tuples.end()){
-        *tuple = *iter_;
-        ++iter_;
-        return true; 
-    }
-    return false;
+  if (iter_ != tuples_.end()) {
+    *tuple = *iter_;
+    ++iter_;
+    return true;
+  }
+  return false;
 }
 }  // namespace bustub
